@@ -1,0 +1,2 @@
+#define LOCAL_SIZE_X 8U
+#define LOCAL_SIZE_Y 4U

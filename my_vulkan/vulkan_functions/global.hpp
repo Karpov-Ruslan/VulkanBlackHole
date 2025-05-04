@@ -1,0 +1,4 @@
+X(vkCreateInstance)
+X(vkEnumerateInstanceExtensionProperties)
+X(vkEnumerateInstanceLayerProperties)
+X(vkEnumerateInstanceVersion)

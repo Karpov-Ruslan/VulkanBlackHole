@@ -1,0 +1,11 @@
+#version 460
+
+#include "black_hole.in"
+
+layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 1U) in;
+
+layout(set = 0, binding = 0, rgba8) uniform restrict writeonly image2D outImage;
+
+void main() {
+    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.5F));
+}
