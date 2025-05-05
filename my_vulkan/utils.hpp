@@ -1,6 +1,5 @@
 #pragma once
 
-#include <bitset>
 #include <constants.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>

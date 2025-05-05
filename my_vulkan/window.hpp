@@ -1,8 +1,10 @@
 #pragma once
 
-#include <windows.h>
 #include <vulkan/vulkan_core.h>
+
+#include <windows.h>
 #include <vulkan/vulkan_win32.h>
+
 #include <GLFW/glfw3.h>
 
 #include <vector>

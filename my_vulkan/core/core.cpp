@@ -35,6 +35,8 @@ Image& Core::RecordCommandBuffer(VkDevice device, VkCommandBuffer commandBuffer)
     for (auto &pPass : passes) {
         pPass->RecordCommandBuffer(device, commandBuffer);
     }
+
+    return static_cast<BlackHolePass*>(passes.back().get())->GetFinalImage();
 }
 
 }

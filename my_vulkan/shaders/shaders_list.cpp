@@ -1,5 +1,6 @@
 #include "shaders_list.hpp"
 #include <constants.hpp>
+#include "my_vulkan/vulkan_functions.hpp"
 
 namespace KRV::Utils {
 

@@ -3,6 +3,8 @@
 #include "my_vulkan/shaders/shaders_list.hpp"
 #include "my_vulkan/shaders/black_hole.in"
 
+#include "my_vulkan/vulkan_functions.hpp"
+
 namespace KRV {
 
 void BlackHolePass::AllocateResources(VkDevice device, Utils::GPUAllocator& gpuAllocator) {
@@ -33,8 +35,9 @@ void BlackHolePass::Destroy(VkDevice device) {
 
 void BlackHolePass::RecordCommandBuffer(VkDevice device, VkCommandBuffer commandBuffer) {
     // Force to undefined image layout, because of performance
-    Utils::ImagePipelineBarrier(commandBuffer, *pFinalImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+    pFinalImage->layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    Utils::ImagePipelineBarrier(commandBuffer, *pFinalImage, VK_IMAGE_LAYOUT_GENERAL,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0U, 1U, &descriptorSet, 0U, nullptr);
@@ -98,7 +101,7 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
     VkDescriptorImageInfo descriptorImageInfo {
         .sampler = VK_NULL_HANDLE,
         .imageView = pFinalImage->imageView,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL
     };
 
     VkWriteDescriptorSet writeDescriptors {
@@ -161,5 +164,8 @@ void BlackHolePass::InitPipeline(VkDevice device) {
     vkDestroyShaderModule(device, blackHoleComp, nullptr);
 }
 
+Image& BlackHolePass::GetFinalImage() {
+    return *pFinalImage;
+}
 
 }

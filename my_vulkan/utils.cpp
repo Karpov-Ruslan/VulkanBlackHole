@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include "my_vulkan/vulkan_functions.hpp"
 
 namespace KRV::Utils {
 

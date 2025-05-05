@@ -1,4 +1,7 @@
 #include "gpu_allocator.hpp"
+#include "my_vulkan/vulkan_functions.hpp"
+
+#include <bitset>
 
 namespace {
 
@@ -50,7 +53,7 @@ void CreateImageView(VkDevice device, const KRV::Utils::CreateImageInfo& createI
 
     image.layout = createImageInfo.initialLayout;
     image.access = 0U;
-    image.stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    image.stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     image.size = createImageInfo.extent;
 }
 
@@ -137,7 +140,7 @@ Image& GPUAllocator::AddImage(VkDevice device, const CreateImageInfo& createImag
 
                     memorySize[i] = memoryOffset + memoryRequirements.size;
                     imageInfos.emplace_back(image, createImageInfo, i, memoryOffset);
-                    imageMapper[createImageInfo.name] = imageInfos.back().image;
+                    imageMapper[createImageInfo.name] = &imageInfos.back().image;
                     return imageInfos.back().image;
                 }
             }
@@ -167,7 +170,7 @@ Buffer& GPUAllocator::AddBuffer(VkDevice device, const CreateBufferInfo& createB
 
                     memorySize[i] = memoryOffset + memoryRequirements.size;
                     bufferInfos.emplace_back(buffer, createBufferInfo, i, memoryOffset);
-                    bufferMapper[createBufferInfo.name] = bufferInfos.back().buffer;
+                    bufferMapper[createBufferInfo.name] = &bufferInfos.back().buffer;
                     return bufferInfos.back().buffer;
                 }
             }
@@ -178,11 +181,11 @@ Buffer& GPUAllocator::AddBuffer(VkDevice device, const CreateBufferInfo& createB
 }
 
 Image& GPUAllocator::GetImage(std::string_view const &name) {
-    return imageMapper[name];
+    return *imageMapper[name];
 }
 
 Buffer& GPUAllocator::GetBuffer(std::string_view const &name) {
-    return bufferMapper[name];
+    return *bufferMapper[name];
 }
 
 void GPUAllocator::PresentResources(VkDevice device) {

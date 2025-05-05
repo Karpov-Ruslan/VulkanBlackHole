@@ -1,9 +1,8 @@
 #include <app.hpp>
 
 int main() {
-    KRV::Core::Core core;
-    KRV::App app(&core);
-    app.DrawFrames();
+    KRV::App app;
+    app.RenderLoop();
 
     return 0;
 }

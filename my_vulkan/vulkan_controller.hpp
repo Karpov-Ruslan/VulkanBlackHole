@@ -19,8 +19,6 @@ public:
 
     ~VulkanController();
 
-    void DrawFrame();
-
 protected:
     static constexpr uint32_t FRAMES_IN_FLIGHT = 2U;
 
@@ -53,7 +51,8 @@ protected:
     void InitSwapchain();
     void InitCommandBuffers();
 
-    void RecordCommandBuffer(VkImage swapchainImage);
+    void RecordCommandBuffer(VkImage swapchainImage, uint32_t fif);
+    void DrawFrame();
 
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;

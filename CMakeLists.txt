@@ -4,7 +4,7 @@ project(VulkanNonEuclidian)
 
 set(CMAKE_CXX_STANDARD 23)
 
-set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -O2")
+set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -O2 -Werror")
 
 set(VULKAN_DEBUG_NAMES OFF CACHE BOOL "Use DebugUtils for vulkan debugging")
 
@@ -16,15 +16,18 @@ if(VULKAN_DEBUG_NAMES)
     add_compile_definitions("VULKAN_DEBUG")
 endif()
 
-find_package(Vulkan REQUIRED)
-include_directories(${Vulkan_INCLUDE_DIRS})
-link_directories(${Vulkan_LIBRARY_DIRS})
-
 # Source files
 add_executable(${PROJECT_NAME}
     main.cpp
+    app.cpp
     my_vulkan/utils.cpp
     my_vulkan/gpu_allocator.cpp
+    my_vulkan/vulkan_controller.cpp
+    my_vulkan/vulkan_functions.cpp
+    my_vulkan/window.cpp
+    my_vulkan/shaders/shaders_list.cpp
+    my_vulkan/core/core.cpp
+    my_vulkan/core/passes/black_hole/black_hole_pass.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

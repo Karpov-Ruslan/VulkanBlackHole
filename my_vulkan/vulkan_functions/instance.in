@@ -1,10 +1,20 @@
 X(vkCreateDevice)
-X(vkCreateWin32SurfaceKHR)
+X(vkDestroyInstance)
 X(vkEnumerateDeviceExtensionProperties)
 X(vkEnumeratePhysicalDevices)
 X(vkGetDeviceProcAddr)
+X(vkGetPhysicalDeviceMemoryProperties)
 X(vkGetPhysicalDeviceProperties)
 X(vkGetPhysicalDeviceQueueFamilyProperties)
+
+// VK_KHR_win32_surface
+X(vkCreateWin32SurfaceKHR)
+
+// VK_KHR_surface
+X(vkDestroySurfaceKHR)
+X(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
+X(vkGetPhysicalDeviceSurfaceFormatsKHR)
+X(vkGetPhysicalDeviceSurfacePresentModesKHR)
 X(vkGetPhysicalDeviceSurfaceSupportKHR)
 
 #ifdef VULKAN_DEBUG

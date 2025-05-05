@@ -84,11 +84,11 @@ private:
 
     // Image queue
     std::vector<ImageInfo> imageInfos = {};
-    std::unordered_map<std::string_view, std::reference_wrapper<Image>> imageMapper;
+    std::unordered_map<std::string_view, Image*> imageMapper;
 
     // Buffer queue
     std::vector<BufferInfo> bufferInfos = {};
-    std::unordered_map<std::string_view, std::reference_wrapper<Buffer>> bufferMapper;
+    std::unordered_map<std::string_view, Buffer*> bufferMapper;
 
     // Memory
     VkPhysicalDeviceMemoryProperties memoryProperties = {};

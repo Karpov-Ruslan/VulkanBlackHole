@@ -2,8 +2,9 @@
 #include "window.hpp"
 #include "utils.hpp"
 
-#include <algortihm>
+#include <algorithm>
 #include <format>
+#include <cstring>
 
 namespace {
 
@@ -31,49 +32,8 @@ VulkanController::VulkanController() {
     core.Init(physicalDevice, device);
 }
 
-void VulkanController::DrawFrame() {
-    VK_CALL(vkWaitForFences(device, 1, &commandBufferInfo.commandBufferFences[fif], VK_TRUE, UINT64_MAX));
-    VK_CALL(vkResetFences(device, 1, &commandBufferInfo.commandBufferFences[fif]));
-
-    uint32_t imageIndex = 0U;
-    VK_CALL(vkAcquireNextImageKHR(device, swapchainInfo.swapchain, UINT64_MAX, queueInfo.canRender[fif], VK_NULL_HANDLE, &imageIndex));
-
-    RecordCommandBuffer(swapchainInfo.images[imageIndex]);
-
-    constexpr VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-
-    VkSubmitInfo submitInfo {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 1U,
-        .pWaitSemaphores = &queueInfo.canRender[fif],
-        .pWaitDstStageMask = &waitDstStageMask,
-        .commandBufferCount = 1U,
-        .pCommandBuffers = &commandBufferInfo.commandBuffers[fif],
-        .signalSemaphoreCount = 1U,
-        .pSignalSemaphores = &queueInfo.canPresent[fif]
-    };
-
-    VK_CALL(vkQueueSubmit(queue, 1U, &submitInfo, commandBufferInfo.commandBufferFences[fif]));
-
-    VkPresentInfoKHR presentInfo {
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 1U,
-        .pWaitSemaphores = &queueInfo.canPresent[fif],
-        .swapchainCount = 1U,
-        .pSwapchains = &swapchainInfo.swapchain,
-        .pImageIndices = &imageIndex,
-        .pResults = nullptr
-    };
-
-    VK_CALL(vkQueuePresentKHR(queue, &presentInfo));
-
-    fif = ++fif % framesInFlight;
-}
-
 void VulkanController::InitInstance() {
-    std::vector<const char*> extensions = Window::GetInstance().GLFWGetRequiredExtensions();
+    std::vector<const char*> extensions = Window::GetInstance().GetVulkanSurfaceExtensions();
 #ifdef VULKAN_DEBUG
     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
@@ -140,19 +100,19 @@ void VulkanController::InitPhysicalDevice() {
 
         VK_CALL(vkEnumerateDeviceExtensionProperties(it, nullptr, &extensionsCount, extensionProperties.data()));
 
-        std::vector<std::string> extensions(extensionsCount);
-        std::ranges::transform(extensionProperties, extensions.begin(), [](VkExtensionProperties const &extensionProperty){
-            return std::string(extensionProperty.extensionName);
-        });
+        for (uint32_t requiredExtensionIndex = 0U; requiredExtensionIndex < std::size(requiredDeviceExtensions); requiredExtensionIndex++) {
+            bool requiredExtensionIsFound = false;
+            auto const &currentRequiredExtensionName = requiredDeviceExtensions[requiredExtensionIndex];
+            for (uint32_t availableExtensionIndex = 0U; availableExtensionIndex < extensionsCount; availableExtensionIndex++) {
+                if (std::strcmp(extensionProperties[availableExtensionIndex].extensionName, currentRequiredExtensionName) == 0) {
+                    requiredExtensionIsFound = true;
+                    break;
+                }
+            }
 
-        std::vector<std::string> requiredExtensions(std::size(requiredDeviceExtensions));
-        std::ranges::transform(std::span(requiredDeviceExtensions), requiredExtensions.begin(),
-            [](char const *extensionName){
-                return std::string(extensionName);
-        });
-
-        if (std::ranges::contains(extensions, requiredExtensions)) {
-            return;
+            if (!requiredExtensionIsFound) {
+                throw std::runtime_error(std::format("This Vulkan Device Extensions does not supported: {}", currentRequiredExtensionName));
+            }
         }
     }
 
@@ -172,11 +132,11 @@ void VulkanController::InitQueueFamilyIndex() {
     // For every queue family check graphics, compute, transfer and presentation flags.
     for (queueFamilyIndex = 0U; queueFamilyIndex < queueFamilyCount; queueFamilyIndex++) {
         if (queueFamilyProperties[queueFamilyIndex].queueFlags == VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT) {
-            bool presentationSupport = false;
+            VkBool32 presentationSupport = VK_FALSE;
             VK_CALL(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndex, surface, &presentationSupport));
 
-            if (presentationSupport) {
-                break;
+            if (presentationSupport == VK_TRUE) {
+                return;
             }
         }
     }
@@ -322,7 +282,7 @@ void VulkanController::InitCommandBuffers() {
 
     auto& commandBuffers = commandBufferInfo.commandBuffers;
 
-    VK_CALL(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, commandBuffers));
+    VK_CALL(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, commandBuffers.data()));
 
     constexpr VkFenceCreateInfo fenceCI {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -339,7 +299,7 @@ void VulkanController::InitCommandBuffers() {
     }
 }
 
-void VulkanController::RecordCommandBuffer(VkImage swapchainImage) {
+void VulkanController::RecordCommandBuffer(VkImage swapchainImage, uint32_t fif) {
     VK_CALL(vkResetCommandBuffer(commandBufferInfo.commandBuffers[fif], 0U));
 
     VkCommandBufferBeginInfo const commandBufferBeginInfo {
@@ -372,7 +332,7 @@ void VulkanController::RecordCommandBuffer(VkImage swapchainImage) {
         }
     };
 
-    vkCmdPipelineBarrier(commandBufferInfo.commandBuffers[fif], 0U,
+    vkCmdPipelineBarrier(commandBufferInfo.commandBuffers[fif], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &firstImageMemoryBarrier);
 
     VkImageBlit const region = VkImageBlit{
@@ -407,8 +367,8 @@ void VulkanController::RecordCommandBuffer(VkImage swapchainImage) {
                 .z = 0
             },
             {
-                .x = swapchainInfo.extent.width,
-                .y = swapchainInfo.extent.height,
+                .x = static_cast<int32_t>(swapchainInfo.extent.width),
+                .y = static_cast<int32_t>(swapchainInfo.extent.height),
                 .z = 1
             }
         }
@@ -436,22 +396,65 @@ void VulkanController::RecordCommandBuffer(VkImage swapchainImage) {
         }
     };
 
-    vkCmdPipelineBarrier(commandBufferInfo.commandBuffers[fif], VK_PIPELINE_STAGE_TRANSFER_BIT,
-        0U, VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &secondImageMemoryBarrier);
+    vkCmdPipelineBarrier(commandBufferInfo.commandBuffers[fif], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &secondImageMemoryBarrier);
 
     VK_CALL(vkEndCommandBuffer(commandBufferInfo.commandBuffers[fif]));
 }
 
+void VulkanController::DrawFrame() {
+    uint32_t &fif = commandBufferInfo.fif;
+    VK_CALL(vkWaitForFences(device, 1, &commandBufferInfo.commandBufferFences[fif], VK_TRUE, UINT64_MAX));
+    VK_CALL(vkResetFences(device, 1, &commandBufferInfo.commandBufferFences[fif]));
+
+    uint32_t imageIndex = 0U;
+    VK_CALL(vkAcquireNextImageKHR(device, swapchainInfo.swapchain, UINT64_MAX, queueInfo.canRender[fif], VK_NULL_HANDLE, &imageIndex));
+
+    RecordCommandBuffer(swapchainInfo.images[imageIndex], fif);
+
+    constexpr VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+    VkSubmitInfo submitInfo {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1U,
+        .pWaitSemaphores = &queueInfo.canRender[fif],
+        .pWaitDstStageMask = &waitDstStageMask,
+        .commandBufferCount = 1U,
+        .pCommandBuffers = &commandBufferInfo.commandBuffers[fif],
+        .signalSemaphoreCount = 1U,
+        .pSignalSemaphores = &queueInfo.canPresent[fif]
+    };
+
+    VK_CALL(vkQueueSubmit(queueInfo.queue, 1U, &submitInfo, commandBufferInfo.commandBufferFences[fif]));
+
+    VkPresentInfoKHR presentInfo {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1U,
+        .pWaitSemaphores = &queueInfo.canPresent[fif],
+        .swapchainCount = 1U,
+        .pSwapchains = &swapchainInfo.swapchain,
+        .pImageIndices = &imageIndex,
+        .pResults = nullptr
+    };
+
+    VK_CALL(vkQueuePresentKHR(queueInfo.queue, &presentInfo));
+
+    fif = ++fif % FRAMES_IN_FLIGHT;
+}
+
 VulkanController::~VulkanController() {
-    // Wait device
-    VK_CALL(vkDeviceWaitIdle(device));
+    // Wait device, before termination
+    // No check return value, because we want to terminate Vulkan
+    vkDeviceWaitIdle(device);
 
     core.Destroy(device);
 
     vkDestroyCommandPool(device, commandBufferInfo.commandPool, nullptr);
 
     for (uint32_t i = 0U; i < FRAMES_IN_FLIGHT; i++) {
-        vkDestroyFence(device, commandBufferInfo.commandBufferFences[i]);
+        vkDestroyFence(device, commandBufferInfo.commandBufferFences[i], nullptr);
         vkDestroySemaphore(device, queueInfo.canPresent[i], nullptr);
         vkDestroySemaphore(device, queueInfo.canRender[i], nullptr);
     }

@@ -20,6 +20,8 @@ public:
     void Destroy(VkDevice device) override;
     void RecordCommandBuffer(VkDevice device, VkCommandBuffer commandBuffer) override;
 
+    Image& GetFinalImage();
+
 private:
     void InitDescriptorSet(VkDevice device);
     void InitPipeline(VkDevice device);
