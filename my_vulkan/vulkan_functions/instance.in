@@ -19,5 +19,7 @@ X(vkGetPhysicalDeviceSurfaceSupportKHR)
 
 #ifdef VULKAN_DEBUG
 // Actually, it is instance function, not device ;)
+X(vkCmdBeginDebugUtilsLabelEXT)
+X(vkCmdEndDebugUtilsLabelEXT)
 X(vkSetDebugUtilsObjectNameEXT)
 #endif

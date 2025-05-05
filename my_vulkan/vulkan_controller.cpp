@@ -190,11 +190,11 @@ void VulkanController::InitQueue() {
     for (uint32_t i = 0U; i < FRAMES_IN_FLIGHT; i++) {
         VkSemaphore& canRender = queueInfo.canRender[i];
         VK_CALL(vkCreateSemaphore(device, &semaphoreCI, nullptr, &canRender));
-        Utils::DebugUtilsName(device, VK_OBJECT_TYPE_SEMAPHORE, canRender, std::format("Queue CanRender Semaphore [{}]", i).c_str());
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_SEMAPHORE, canRender, std::format("Queue CanRender Semaphore [{}]", i).c_str());
 
         VkSemaphore& canPresent = queueInfo.canPresent[i];
         VK_CALL(vkCreateSemaphore(device, &semaphoreCI, nullptr, &canPresent));
-        Utils::DebugUtilsName(device, VK_OBJECT_TYPE_SEMAPHORE, canPresent, std::format("Queue CanPresent Semaphore [{}]", i).c_str());
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_SEMAPHORE, canPresent, std::format("Queue CanPresent Semaphore [{}]", i).c_str());
     }
 }
 
@@ -291,16 +291,18 @@ void VulkanController::InitCommandBuffers() {
     };
 
     for (uint32_t i = 0U; i < FRAMES_IN_FLIGHT; i++) {
-        Utils::DebugUtilsName(device, VK_OBJECT_TYPE_COMMAND_BUFFER, commandBuffers[i], std::format("Command Buffer [{}]", i).c_str());
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_COMMAND_BUFFER, commandBuffers[i], std::format("Command Buffer [{}]", i).c_str());
 
         VkFence& fence = commandBufferInfo.commandBufferFences[i];
         VK_CALL(vkCreateFence(device, &fenceCI, nullptr, &fence));
-        Utils::DebugUtilsName(device, VK_OBJECT_TYPE_FENCE, fence, std::format("Command Buffer Fence [{}]", i).c_str());
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_FENCE, fence, std::format("Command Buffer Fence [{}]", i).c_str());
     }
 }
 
 void VulkanController::RecordCommandBuffer(VkImage swapchainImage, uint32_t fif) {
-    VK_CALL(vkResetCommandBuffer(commandBufferInfo.commandBuffers[fif], 0U));
+    VkCommandBuffer commandBuffer = commandBufferInfo.commandBuffers[fif];
+
+    VK_CALL(vkResetCommandBuffer(commandBuffer, 0U));
 
     VkCommandBufferBeginInfo const commandBufferBeginInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -309,97 +311,105 @@ void VulkanController::RecordCommandBuffer(VkImage swapchainImage, uint32_t fif)
         .pInheritanceInfo = nullptr
     };
 
-    VK_CALL(vkBeginCommandBuffer(commandBufferInfo.commandBuffers[fif], &commandBufferBeginInfo));
+    VK_CALL(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
 
-    Image& finalImage = core.RecordCommandBuffer(device, commandBufferInfo.commandBuffers[fif]);
+    {
+        Utils::DebugUtils::LabelGuard labelGeneralGuard(commandBuffer, "RecordCommandBuffer", 0.7F, 0.7F, 0.7F);
 
-    VkImageMemoryBarrier const firstImageMemoryBarrier {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext = nullptr,
-        .srcAccessMask = 0U,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = swapchainImage,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0U,
-            .levelCount = 1U,
-            .baseArrayLayer = 0U,
-            .layerCount = 1U
+        Image& finalImage = core.RecordCommandBuffer(device, commandBuffer);
+
+        {
+            Utils::DebugUtils::LabelGuard labelBlitGuard(commandBuffer, "Final Blit", 1.0F, 1.0F, 1.0F);
+
+            VkImageMemoryBarrier const firstImageMemoryBarrier {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = 0U,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = swapchainImage,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0U,
+                    .levelCount = 1U,
+                    .baseArrayLayer = 0U,
+                    .layerCount = 1U
+                }
+            };
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &firstImageMemoryBarrier);
+
+            VkImageBlit const region = VkImageBlit{
+                .srcSubresource = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = 0U,
+                    .baseArrayLayer = 0U,
+                    .layerCount = 1U
+                },
+                .srcOffsets = {
+                    {
+                        .x = 0,
+                        .y = 0,
+                        .z = 0
+                    },
+                    {
+                        .x = static_cast<int32_t>(WINDOW_SIZE_WIDTH),
+                        .y = static_cast<int32_t>(WINDOW_SIZE_HEIGHT),
+                        .z = 1
+                    }
+                },
+                .dstSubresource = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = 0U,
+                    .baseArrayLayer = 0U,
+                    .layerCount = 1U
+                },
+                .dstOffsets = {
+                    {
+                        .x = 0,
+                        .y = 0,
+                        .z = 0
+                    },
+                    {
+                        .x = static_cast<int32_t>(swapchainInfo.extent.width),
+                        .y = static_cast<int32_t>(swapchainInfo.extent.height),
+                        .z = 1
+                    }
+                }
+            };
+
+            vkCmdBlitImage(commandBuffer, finalImage.image, finalImage.layout, swapchainImage,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1U, &region, VK_FILTER_LINEAR);
+
+            VkImageMemoryBarrier const secondImageMemoryBarrier {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = 0U,
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = swapchainImage,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0U,
+                    .levelCount = 1U,
+                    .baseArrayLayer = 0U,
+                    .layerCount = 1U
+                }
+            };
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &secondImageMemoryBarrier);
         }
-    };
+    }
 
-    vkCmdPipelineBarrier(commandBufferInfo.commandBuffers[fif], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &firstImageMemoryBarrier);
-
-    VkImageBlit const region = VkImageBlit{
-        .srcSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .mipLevel = 0U,
-            .baseArrayLayer = 0U,
-            .layerCount = 1U
-        },
-        .srcOffsets = {
-            {
-                .x = 0,
-                .y = 0,
-                .z = 0
-            },
-            {
-                .x = static_cast<int32_t>(WINDOW_SIZE_WIDTH),
-                .y = static_cast<int32_t>(WINDOW_SIZE_HEIGHT),
-                .z = 1
-            }
-        },
-        .dstSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .mipLevel = 0U,
-            .baseArrayLayer = 0U,
-            .layerCount = 1U
-        },
-        .dstOffsets = {
-            {
-                .x = 0,
-                .y = 0,
-                .z = 0
-            },
-            {
-                .x = static_cast<int32_t>(swapchainInfo.extent.width),
-                .y = static_cast<int32_t>(swapchainInfo.extent.height),
-                .z = 1
-            }
-        }
-    };
-
-    vkCmdBlitImage(commandBufferInfo.commandBuffers[fif], finalImage.image, finalImage.layout, swapchainImage,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1U, &region, VK_FILTER_LINEAR);
-
-    VkImageMemoryBarrier const secondImageMemoryBarrier {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext = nullptr,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = 0U,
-        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = swapchainImage,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0U,
-            .levelCount = 1U,
-            .baseArrayLayer = 0U,
-            .layerCount = 1U
-        }
-    };
-
-    vkCmdPipelineBarrier(commandBufferInfo.commandBuffers[fif], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &secondImageMemoryBarrier);
-
-    VK_CALL(vkEndCommandBuffer(commandBufferInfo.commandBuffers[fif]));
+    VK_CALL(vkEndCommandBuffer(commandBuffer));
 }
 
 void VulkanController::DrawFrame() {

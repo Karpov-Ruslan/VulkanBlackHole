@@ -26,7 +26,7 @@ void CreateImage(VkDevice device, const KRV::Utils::CreateImageInfo& createImage
 
     VK_CALL(vkCreateImage(device, &imageCreateInfo, nullptr, &image.image));
 
-    KRV::Utils::DebugUtilsName(device, VK_OBJECT_TYPE_IMAGE, image.image, createImageInfo.name.c_str());
+    KRV::Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_IMAGE, image.image, createImageInfo.name.c_str());
 }
 
 void CreateImageView(VkDevice device, const KRV::Utils::CreateImageInfo& createImageInfo, KRV::Image& image) {
@@ -49,7 +49,7 @@ void CreateImageView(VkDevice device, const KRV::Utils::CreateImageInfo& createI
 
     VK_CALL(vkCreateImageView(device, &viewCreateInfo, nullptr, &image.imageView));
 
-    KRV::Utils::DebugUtilsName(device, VK_OBJECT_TYPE_IMAGE_VIEW, image.imageView, createImageInfo.name.c_str());
+    KRV::Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_IMAGE_VIEW, image.imageView, createImageInfo.name.c_str());
 
     image.layout = createImageInfo.initialLayout;
     image.access = 0U;
@@ -71,7 +71,7 @@ void CreateBuffer(VkDevice device, const KRV::Utils::CreateBufferInfo& createBuf
 
     VK_CALL(vkCreateBuffer(device, &createInfo, nullptr, &buffer.buffer));
 
-    KRV::Utils::DebugUtilsName(device, VK_OBJECT_TYPE_BUFFER, buffer.buffer, createBufferInfo.name.c_str());
+    KRV::Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_BUFFER, buffer.buffer, createBufferInfo.name.c_str());
 
     buffer.size = createBufferInfo.size;
 }

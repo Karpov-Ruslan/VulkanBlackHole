@@ -28,20 +28,40 @@ struct Buffer {
 
 namespace Utils {
 
-template <typename T>
-void DebugUtilsName(VkDevice device, VkObjectType objectType, T object, const char* name) {
-#ifdef VULKAN_DEBUG
-    VkDebugUtilsObjectNameInfoEXT objectNameInfo {
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .pNext = nullptr,
-        .objectType = objectType,
-        .objectHandle = reinterpret_cast<uint64_t>(object),
-        .pObjectName = name
+class DebugUtils final {
+public:
+    class LabelGuard final {
+    public:
+        LabelGuard(VkCommandBuffer commandBuffer, char const *name, float r, float g, float b);
+
+        LabelGuard(LabelGuard const &) = delete;
+        LabelGuard& operator=(LabelGuard const &) = delete;
+        LabelGuard(LabelGuard &&) = delete;
+        LabelGuard& operator=(LabelGuard &&) = delete;
+
+        ~LabelGuard();
+
+    private:
+        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
     };
 
-    VK_CALL(vkSetDebugUtilsObjectNameEXT(device, &objectNameInfo));
+    static void Name(VkDevice device, VkObjectType objectType, auto object, const char* name) {
+#ifdef VULKAN_DEBUG
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .pNext = nullptr,
+            .objectType = objectType,
+            .objectHandle = reinterpret_cast<uint64_t>(object),
+            .pObjectName = name
+        };
+
+        NameImpl(device, objectNameInfo);
 #endif
-}
+    }
+
+private:
+    static void NameImpl(VkDevice device, VkDebugUtilsObjectNameInfoEXT const &objectNameInfo);
+};
 
 void MemoryPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStage, VkAccessFlags srcAccess, VkPipelineStageFlags dstStage, VkAccessFlags dstAccess);
 

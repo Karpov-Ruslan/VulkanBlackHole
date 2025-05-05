@@ -3,6 +3,32 @@
 
 namespace KRV::Utils {
 
+DebugUtils::LabelGuard::LabelGuard(VkCommandBuffer commandBuffer, char const *name,
+    float r, float g, float b) : commandBuffer(commandBuffer) {
+#ifdef VULKAN_DEBUG
+    VkDebugUtilsLabelEXT label {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pNext = nullptr,
+        .pLabelName = name,
+        .color = {r, g, b, 1.0F}
+    };
+
+    vkCmdBeginDebugUtilsLabelEXT(commandBuffer, &label);
+#endif
+}
+
+DebugUtils::LabelGuard::~LabelGuard() {
+#ifdef VULKAN_DEBUG
+    vkCmdEndDebugUtilsLabelEXT(commandBuffer);
+#endif
+}
+
+void DebugUtils::NameImpl(VkDevice device, VkDebugUtilsObjectNameInfoEXT const &objectNameInfo) {
+#ifdef VULKAN_DEBUG
+    VK_CALL(vkSetDebugUtilsObjectNameEXT(device, &objectNameInfo));
+#endif
+}
+
 void ImageChangeProperties(Image& image, VkImageLayout newLayout, VkPipelineStageFlags dstStage, VkAccessFlags dstAccess) {
     image.layout = newLayout;
     image.stage = dstStage;

@@ -34,6 +34,8 @@ void BlackHolePass::Destroy(VkDevice device) {
 }
 
 void BlackHolePass::RecordCommandBuffer(VkDevice device, VkCommandBuffer commandBuffer) {
+    Utils::DebugUtils::LabelGuard labelGuard(commandBuffer, "BlackHolePass", 0.5F, 0.0F, 0.0F);
+
     // Force to undefined image layout, because of performance
     pFinalImage->layout = VK_IMAGE_LAYOUT_UNDEFINED;
     Utils::ImagePipelineBarrier(commandBuffer, *pFinalImage, VK_IMAGE_LAYOUT_GENERAL,
@@ -64,7 +66,7 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
 
     VK_CALL(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorPool));
 
-    Utils::DebugUtilsName(device, VK_OBJECT_TYPE_DESCRIPTOR_POOL, descriptorPool, "BlackHolePass::DescriptorPool");
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_DESCRIPTOR_POOL, descriptorPool, "BlackHolePass::DescriptorPool");
 
     VkDescriptorSetLayoutBinding descriptorSetLayoutBinding {
         .binding = 0U,
@@ -84,7 +86,7 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
 
     VK_CALL(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout))
 
-    Utils::DebugUtilsName(device, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptorSetLayout, "BlackHolePass::DescriptorSetLayout");
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptorSetLayout, "BlackHolePass::DescriptorSetLayout");
 
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -96,7 +98,7 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
 
     VK_CALL(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet))
 
-    Utils::DebugUtilsName(device, VK_OBJECT_TYPE_DESCRIPTOR_SET, descriptorSet, "BlackHolePass::DescriptorSet");
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_DESCRIPTOR_SET, descriptorSet, "BlackHolePass::DescriptorSet");
 
     VkDescriptorImageInfo descriptorImageInfo {
         .sampler = VK_NULL_HANDLE,
@@ -133,7 +135,7 @@ void BlackHolePass::InitPipeline(VkDevice device) {
 
     VK_CALL(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
-    Utils::DebugUtilsName(device, VK_OBJECT_TYPE_PIPELINE_LAYOUT, pipelineLayout, "BlackHolePass::PipelineLayout");
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE_LAYOUT, pipelineLayout, "BlackHolePass::PipelineLayout");
 
     VkShaderModule blackHoleComp = Utils::GetShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_COMP);
 
@@ -159,7 +161,7 @@ void BlackHolePass::InitPipeline(VkDevice device) {
 
     VK_CALL(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1U, &pipelineCI, nullptr, &pipeline));
 
-    Utils::DebugUtilsName(device, VK_OBJECT_TYPE_PIPELINE, pipeline, "BlackHolePass::Pipeline");
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE, pipeline, "BlackHolePass::Pipeline");
 
     vkDestroyShaderModule(device, blackHoleComp, nullptr);
 }
