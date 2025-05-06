@@ -45,7 +45,7 @@ void VulkanController::InitInstance() {
         .applicationVersion = 1,
         .pEngineName = "EngineName",
         .engineVersion = 1,
-        .apiVersion = VK_API_VERSION_1_2
+        .apiVersion = VK_API_VERSION_1_0
     };
 
     VkInstanceCreateInfo instanceCI {
@@ -157,7 +157,6 @@ void VulkanController::InitDevice() {
 
     ////////////// Physical Device Features Structure //////////////
     VkPhysicalDeviceFeatures physicalDeviceFeatures {
-        .shaderFloat64 = VK_TRUE
     };
     ////////////////////////////////////////////////////////////////
 
