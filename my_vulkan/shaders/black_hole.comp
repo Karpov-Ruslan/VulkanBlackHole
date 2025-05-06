@@ -8,6 +8,8 @@ const float BLACK_HOLE_RADIUS = 0.05F; // Schwarzschild radius
 const float INV_BLACK_HOLE_RADIUS = 1.0F/BLACK_HOLE_RADIUS;
 
 // Ray Marching params
+const float STOP_INV_RADIUS_ITER = INV_BLACK_HOLE_RADIUS * 0.01F;
+const float TAN_STOP_ITER = 0.2F;
 const uint MAX_STEPS = 10000U;
 const float h = 0.01F;
 
@@ -85,7 +87,7 @@ vec4 traceRayBlackHole(vec3 pixelCameraDir) {
         }
 
         // Case: The ray is far away from the black hole, so can stop the cycle.
-        if (uInfo.y > 0.0F && uInfo.x < INV_BLACK_HOLE_RADIUS*0.01F) {
+        if (uInfo.y < TAN_STOP_ITER*INV_BLACK_HOLE_RADIUS && uInfo.x < STOP_INV_RADIUS_ITER) {
             break;
         }
     }
