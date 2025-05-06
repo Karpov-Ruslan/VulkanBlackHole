@@ -6,12 +6,18 @@
 // Black hole center is (0.0, 0.0, 0.0)
 const float BLACK_HOLE_RADIUS = 0.05F; // Schwarzschild radius
 const float INV_BLACK_HOLE_RADIUS = 1.0F/BLACK_HOLE_RADIUS;
+const float INNER_RADIUS_OF_ACCRETION_DISK = 3.0F*BLACK_HOLE_RADIUS;
+const float OUTER_RADIUS_OF_ACCRETION_DISK = 6.0F*BLACK_HOLE_RADIUS;
+const vec3 ROTATION_AXIS_OF_ACCRETION_DISK = normalize(vec3(0.0F, 0.0F, 4.0F));
+const vec3 COLOR_OF_ACCRETION_DISK = vec3(1.0F, 0.5F, 0.0F) * 0.04F;
+const float THICKNESS_OF_ACCRETION_DISK = 0.01F;
+const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK;
 
 // Ray Marching params
 const float STOP_INV_RADIUS_ITER = INV_BLACK_HOLE_RADIUS * 0.01F;
 const float TAN_STOP_ITER = 0.2F;
 const uint MAX_STEPS = 10000U;
-const float h = 0.01F;
+const float h = 0.003F;
 
 // Camera params
 const float HALF_FOV_HORIZONTAL_TAN = tan(radians(60));
@@ -52,6 +58,26 @@ void transformUInfoIntoDirectionAndPosition(vec2 uInfo, float phi, vec3 rotation
     direction = normalize(cross(normRotationAxis, normPosition) - normPosition*uInfo.y*radius);
 }
 
+float rand(float n){
+    return fract(sin(n) * 43758.5453123F);
+}
+
+float noise(float p){
+	float fl = floor(p);
+    float fc = fract(p);
+	return mix(rand(fl), rand(fl + 1.0F), fc);
+}
+
+float limitRadius(float x, float lo, float hi) {
+    return step(lo, x) * step(-hi, -x);
+}
+
+float accretionDiskDensity(vec3 position) {
+    float a = -dot(position, ROTATION_AXIS_OF_ACCRETION_DISK);
+    float r = length(position + a*ROTATION_AXIS_OF_ACCRETION_DISK);
+    return max(noise(r*400.0F)*limitRadius(r, INNER_RADIUS_OF_ACCRETION_DISK, OUTER_RADIUS_OF_ACCRETION_DISK) - abs(a)*INV_THICKNESS_OF_ACCRETION_DISK, 0.0F);
+}
+
 // u = 1/r; r - radius
 // uInfo = vec2(u, d(u)/d(phi));
 vec2 f(vec2 uInfo) {
@@ -69,7 +95,7 @@ vec2 rk4(vec2 uInfo, float h) {
     return uInfo + 0.166666666666666666667F*h*(k1 + 2.0F*k2 + 2.0F*k3 + k4);
 }
 
-vec4 traceRayBlackHole(vec3 pixelCameraDir) {
+vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     // u = 1/r; r - radius
     // uInfo = vec2(u, d(u)/d(phi));
     float invInitialRadius = 1.0F/length(cameraPos);
@@ -77,29 +103,36 @@ vec4 traceRayBlackHole(vec3 pixelCameraDir) {
     vec2 uInfo = vec2(invInitialRadius, -(dot(cameraPos, pixelCameraDir)/length(rotationAxis))*invInitialRadius);
     float phi = 0.0F;
 
+    // Forward declaration
+    vec3 direction;
+    vec3 position;
+    vec3 outputColor = vec3(0.0F);
+
     for (uint i = 0U; i < MAX_STEPS; ++i) {
         uInfo = rk4(uInfo, h);
         phi += h;
 
         // Case: Fall into black hole
         if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
-            return vec4(vec3(0.0F), 1.0F);
+            return outputColor;
         }
 
         // Case: The ray is far away from the black hole, so can stop the cycle.
         if (uInfo.y < TAN_STOP_ITER*INV_BLACK_HOLE_RADIUS && uInfo.x < STOP_INV_RADIUS_ITER) {
             break;
         }
+
+        transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
+        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK;
     }
 
     // Case: Go into infinity
-    vec3 direction;
-    vec3 position;
     transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
-    return texture(spaceCubeMap, direction);
+    outputColor += texture(spaceCubeMap, direction).xyz;
+    return outputColor;
 }
 
 void main() {
     vec3 pixelCameraDir = initializeStartGrid();
-    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), traceRayBlackHole(pixelCameraDir));
+    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(traceRayBlackHole(pixelCameraDir), 1.0F));
 }

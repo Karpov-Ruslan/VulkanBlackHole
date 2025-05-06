@@ -44,7 +44,7 @@ private:
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 
-    Camera camera = Camera(glm::vec3(-1.0F, 0.0F, 0.0F), glm::vec3(1.0F, 0.0F, 0.0F), 0.1F, 1.0F, 1.57F);
+    Camera camera = Camera(glm::vec3(-0.5F, 0.0F, 0.0F), glm::vec3(1.0F, 0.0F, 0.0F), 0.1F, 1.0F, 1.57F);
 };
 
 }

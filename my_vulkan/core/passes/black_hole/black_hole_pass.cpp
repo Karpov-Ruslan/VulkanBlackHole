@@ -114,9 +114,15 @@ void BlackHolePass::InitSampler(VkDevice device) {
 }
 
 void BlackHolePass::InitDescriptorSet(VkDevice device) {
-    VkDescriptorPoolSize descriptorPoolSize {
-        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = 1U
+    VkDescriptorPoolSize descriptorPoolSizes[] = {
+        {
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1U
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1U
+        }
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolCI {
@@ -124,8 +130,8 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
         .pNext = nullptr,
         .flags = 0U,
         .maxSets = 1U,
-        .poolSizeCount = 1U,
-        .pPoolSizes = &descriptorPoolSize
+        .poolSizeCount = std::size(descriptorPoolSizes),
+        .pPoolSizes = descriptorPoolSizes
     };
 
     VK_CALL(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &descriptorPool));

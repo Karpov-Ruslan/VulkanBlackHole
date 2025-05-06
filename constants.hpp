@@ -15,7 +15,7 @@
 namespace KRV {
 
 // Relates to window/swapchain info
-constexpr uint32_t WINDOW_SIZE_WIDTH = 800U;
+constexpr uint32_t WINDOW_SIZE_WIDTH = 1200U;
 constexpr float WINDOW_SIZE_WIDTH_F = static_cast<float>(WINDOW_SIZE_WIDTH);
 constexpr uint32_t WINDOW_SIZE_HEIGHT = 800U;
 constexpr float WINDOW_SIZE_HEIGHT_F = static_cast<float>(WINDOW_SIZE_HEIGHT);
