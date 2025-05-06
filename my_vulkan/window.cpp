@@ -38,7 +38,7 @@ Window::Window() {
 
     window = glfwCreateWindow(WINDOW_SIZE_WIDTH, WINDOW_SIZE_HEIGHT, "Vulkan", nullptr, nullptr);
 
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 }
 
 VkWin32SurfaceCreateInfoKHR Window::GetVulkanSurfaceCreateInfo() {

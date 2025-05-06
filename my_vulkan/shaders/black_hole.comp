@@ -2,10 +2,89 @@
 
 #include "black_hole.in"
 
+// Black Hole params
+// Black hole center is (0.0, 0.0, 0.0)
+const float BLACK_HOLE_RADIUS = 0.05F; // Schwarzschild radius
+const float INV_BLACK_HOLE_RADIUS = 1.0F/BLACK_HOLE_RADIUS;
+
+// Ray Marching params
+const uint MAX_STEPS = 10000U;
+const float h = 0.01F;
+
+// Camera params
+const float HALF_FOV_HORIZONTAL_TAN = tan(radians(45));
+
 layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 1U) in;
 
 layout(set = 0, binding = 0, rgba8) uniform restrict writeonly image2D outImage;
 
+struct CameraInfo {
+    vec3 cameraPos; // Camera Position relative to Black Hole center
+    vec3 cameraDir; // Should be normalized
+};
+
+// TODO: Use push constants
+const CameraInfo cameraInfo = CameraInfo(
+    vec3(-1.0F, 0.0F, 0.0F),
+    vec3(1.0F, 0.0F, 0.0F)
+);
+
+// Give cameraDir for each pixel
+vec3 initializeStartGrid() {
+    vec2 resolution = vec2(gl_NumWorkGroups.xy * gl_WorkGroupSize.xy);
+
+    vec2 uv = (vec2(gl_GlobalInvocationID.xy) + 0.5F)/resolution;
+    vec2 xy = fma(uv, vec2(2.0F), vec2(-1.0F));
+
+    const float horizontalScale = HALF_FOV_HORIZONTAL_TAN;
+    float verticalScale = (resolution.y/resolution.x)*HALF_FOV_HORIZONTAL_TAN;
+
+    vec3 horizontalCameraVec = horizontalScale*normalize(vec3(-cameraInfo.cameraDir.y, cameraInfo.cameraDir.x, 0.0));
+    vec3 verticalCameraVec = verticalScale*normalize(cross(horizontalCameraVec, cameraInfo.cameraDir));
+
+    return cameraInfo.cameraDir + horizontalCameraVec*xy.x + verticalCameraVec*xy.y;
+}
+
+// u = 1/r; r - radius
+// uInfo = vec2(u, d(u)/d(phi));
+vec2 f(vec2 uInfo) {
+    return vec2(uInfo.y, 1.5F*BLACK_HOLE_RADIUS*uInfo.x*uInfo.x - uInfo.x);
+}
+
+// Explicit Runge-Kutta method (RK4)
+// u = 1/r; r - radius
+// uInfo = vec2(u, d(u)/d(phi));
+vec2 rk4(vec2 uInfo, float h) {
+    vec2 k1 = f(uInfo);
+    vec2 k2 = f(uInfo + k1*h*0.5F);
+    vec2 k3 = f(uInfo + k2*h*0.5F);
+    vec2 k4 = f(uInfo + k3*h);
+    return uInfo + 0.166666666666666666667F*h*(k1 + 2.0F*k2 + 2.0F*k3 + k4);
+}
+
+vec4 traceRayBlackHole(vec3 pixelCameraDir) {
+    // u = 1/r; r - radius
+    // uInfo = vec2(u, d(u)/d(phi));
+    float initialRadius = length(cameraInfo.cameraPos);
+    vec3 rotationAxis = cross(pixelCameraDir, cameraInfo.cameraPos);
+    vec2 uInfo = vec2(1.0F/initialRadius, (dot(pixelCameraDir, cameraInfo.cameraPos)/length(rotationAxis))*initialRadius);
+    float phi = 0.0F;
+
+    for (uint i = 0U; i < MAX_STEPS; ++i) {
+        uInfo = rk4(uInfo, h);
+        phi += h;
+
+        // Case: Fall into black hole
+        if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
+            return vec4(vec3(0.0F), 1.0F);
+        }
+    }
+
+    // Case: Go into infinity
+    return vec4(vec3(0.5F), 1.0F);
+}
+
 void main() {
-    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.5F));
+    vec3 pixelCameraDir = initializeStartGrid();
+    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), traceRayBlackHole(pixelCameraDir));
 }

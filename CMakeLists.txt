@@ -20,6 +20,7 @@ endif()
 add_executable(${PROJECT_NAME}
     main.cpp
     app.cpp
+    utils/clock.cpp
     my_vulkan/utils.cpp
     my_vulkan/gpu_allocator.cpp
     my_vulkan/vulkan_controller.cpp

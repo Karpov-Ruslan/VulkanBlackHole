@@ -156,7 +156,9 @@ void VulkanController::InitDevice() {
     };
 
     ////////////// Physical Device Features Structure //////////////
-    VkPhysicalDeviceFeatures physicalDeviceFeatures {};
+    VkPhysicalDeviceFeatures physicalDeviceFeatures {
+        .shaderFloat64 = VK_TRUE
+    };
     ////////////////////////////////////////////////////////////////
 
     ///////////////// Device Extensions Structures /////////////////
