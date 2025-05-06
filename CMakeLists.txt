@@ -4,7 +4,11 @@ project(VulkanNonEuclidian)
 
 set(CMAKE_CXX_STANDARD 23)
 
-set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -O2 -Werror")
+set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Werror")
+
+if (${CMAKE_BUILD_TYPE} STREQUAL "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+endif()
 
 set(VULKAN_DEBUG_NAMES OFF CACHE BOOL "Use DebugUtils for vulkan debugging")
 
@@ -36,6 +40,16 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     "./"
     "./my_vulkan/shaders/spv"
 )
+
+# Copy textures into build directory
+add_custom_target(TEXTURE_COPY
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/textures"
+        "${CMAKE_CURRENT_BINARY_DIR}/textures"
+    WORKING_DIRECTORY "./"
+    COMMENT "Copying textures into build folder..."
+)
+add_dependencies(${PROJECT_NAME} TEXTURE_COPY)
 
 # SPIR-V files generation
 find_package(Python3 REQUIRED COMPONENTS Interpreter)

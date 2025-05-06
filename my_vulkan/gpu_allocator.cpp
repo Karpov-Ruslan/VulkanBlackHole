@@ -136,7 +136,7 @@ Image& GPUAllocator::AddImage(VkDevice device, const CreateImageInfo& createImag
             if ((memoryProperties.memoryTypes[i].propertyFlags & requiredMemoryFlag) == requiredMemoryFlag) {
                 if ((memoryProperties.memoryTypes[i].propertyFlags & avoidableMemoryFlag) == 0U) {
                     const auto& alignment = memoryRequirements.alignment;
-                    const VkDeviceSize memoryOffset = ((memorySize[i] + alignment) & (~(alignment - 1)));
+                    const VkDeviceSize memoryOffset = ((memorySize[i] + alignment - 1ULL) & (~(alignment - 1ULL)));
 
                     memorySize[i] = memoryOffset + memoryRequirements.size;
                     imageInfos.emplace_back(image, createImageInfo, i, memoryOffset);
@@ -166,7 +166,7 @@ Buffer& GPUAllocator::AddBuffer(VkDevice device, const CreateBufferInfo& createB
             if ((memoryProperties.memoryTypes[i].propertyFlags & requiredMemoryFlag) == requiredMemoryFlag) {
                 if ((memoryProperties.memoryTypes[i].propertyFlags & avoidableMemoryFlag) == 0U) {
                     const auto& alignment = memoryRequirements.alignment;
-                    const VkDeviceSize memoryOffset = ((memorySize[i] + alignment) & (~(alignment - 1)));
+                    const VkDeviceSize memoryOffset = ((memorySize[i] + alignment - 1ULL) & (~(alignment - 1ULL)));
 
                     memorySize[i] = memoryOffset + memoryRequirements.size;
                     bufferInfos.emplace_back(buffer, createBufferInfo, i, memoryOffset);

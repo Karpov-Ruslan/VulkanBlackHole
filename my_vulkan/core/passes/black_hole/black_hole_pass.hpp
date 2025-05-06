@@ -24,11 +24,20 @@ public:
     Image& GetFinalImage();
 
 private:
+    void InitSampler(VkDevice device);
     void InitDescriptorSet(VkDevice device);
     void InitPipeline(VkDevice device);
 
+    void AllocateCubeMap(VkDevice device, Utils::GPUAllocator& gpuAllocator);
+    void LoadCubeMap(VkDevice device, VkCommandBuffer commandBuffer);
+
     Image *pFinalImage = nullptr;
 
+    Image *pCubeMap = nullptr;
+    Buffer *pStagingBuffer = nullptr;
+    bool cubeMapIsLoaded = false;
+
+    VkSampler sampler = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;

@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <functional>
 #include <string_view>
+#include <list>
 
 namespace KRV::Utils {
 
@@ -83,11 +84,11 @@ private:
     void BindBufferMemory(VkDevice device);
 
     // Image queue
-    std::vector<ImageInfo> imageInfos = {};
+    std::list<ImageInfo> imageInfos;
     std::unordered_map<std::string_view, Image*> imageMapper;
 
     // Buffer queue
-    std::vector<BufferInfo> bufferInfos = {};
+    std::list<BufferInfo> bufferInfos;
     std::unordered_map<std::string_view, Buffer*> bufferMapper;
 
     // Memory

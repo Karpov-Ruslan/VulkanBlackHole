@@ -12,11 +12,12 @@ const uint MAX_STEPS = 10000U;
 const float h = 0.01F;
 
 // Camera params
-const float HALF_FOV_HORIZONTAL_TAN = tan(radians(45));
+const float HALF_FOV_HORIZONTAL_TAN = tan(radians(60));
 
 layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 1U) in;
 
-layout(set = 0, binding = 0, rgba8) uniform restrict writeonly image2D outImage;
+layout(set = 0, binding = BINDING_FINAL_IMAGE, rgba8) uniform restrict writeonly image2D outImage;
+layout(set = 0, binding = BINDING_CUBE_MAP) uniform samplerCube spaceCubeMap;
 
 layout(push_constant) uniform PushConst {
     layout(offset = PUSH_CONSTANT_CAMERA_POSITION_OFFSET)  vec3 cameraPos;
@@ -34,9 +35,19 @@ vec3 initializeStartGrid() {
     float verticalScale = (resolution.y/resolution.x)*HALF_FOV_HORIZONTAL_TAN;
 
     vec3 horizontalCameraVec = horizontalScale*normalize(vec3(cameraDir.y, -cameraDir.x, 0.0));
-    vec3 verticalCameraVec = verticalScale*normalize(cross(horizontalCameraVec, cameraDir));
+    vec3 verticalCameraVec = verticalScale*normalize(cross(cameraDir, horizontalCameraVec));
 
     return cameraDir + horizontalCameraVec*xy.x + verticalCameraVec*xy.y;
+}
+
+void transformUInfoIntoDirectionAndPosition(vec2 uInfo, float phi, vec3 rotationAxis, out vec3 position, out vec3 direction) {
+    vec3 normCameraPos = normalize(cameraPos);
+    vec3 normRotationAxis = normalize(rotationAxis);
+    vec3 normPerpendicular = cross(normRotationAxis, normCameraPos); // Normalized Perpendicular
+    vec3 normPosition = normCameraPos * cos(phi) + normPerpendicular * sin(phi);
+    float radius = (1.0F/uInfo.x);
+    position = normPosition*radius;
+    direction = normalize(cross(normRotationAxis, normPosition) - normPosition*uInfo.y*radius);
 }
 
 // u = 1/r; r - radius
@@ -59,9 +70,9 @@ vec2 rk4(vec2 uInfo, float h) {
 vec4 traceRayBlackHole(vec3 pixelCameraDir) {
     // u = 1/r; r - radius
     // uInfo = vec2(u, d(u)/d(phi));
-    float initialRadius = length(cameraPos);
-    vec3 rotationAxis = cross(pixelCameraDir, cameraPos);
-    vec2 uInfo = vec2(1.0F/initialRadius, -(dot(pixelCameraDir, cameraPos)/length(rotationAxis))/initialRadius);
+    float invInitialRadius = 1.0F/length(cameraPos);
+    vec3 rotationAxis = cross(cameraPos, pixelCameraDir);
+    vec2 uInfo = vec2(invInitialRadius, -(dot(cameraPos, pixelCameraDir)/length(rotationAxis))*invInitialRadius);
     float phi = 0.0F;
 
     for (uint i = 0U; i < MAX_STEPS; ++i) {
@@ -72,10 +83,18 @@ vec4 traceRayBlackHole(vec3 pixelCameraDir) {
         if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
             return vec4(vec3(0.0F), 1.0F);
         }
+
+        // Case: The ray is far away from the black hole, so can stop the cycle.
+        if (uInfo.y > 0.0F && uInfo.x < INV_BLACK_HOLE_RADIUS*0.01F) {
+            break;
+        }
     }
 
     // Case: Go into infinity
-    return vec4(vec3(0.5F), 1.0F);
+    vec3 direction;
+    vec3 position;
+    transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
+    return texture(spaceCubeMap, direction);
 }
 
 void main() {
