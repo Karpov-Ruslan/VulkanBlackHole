@@ -75,12 +75,29 @@ bool Window::ShouldClose() {
 
 void Window::PollEvents() {
     glfwPollEvents();
+    ProcessEvents();
 }
 
+Window::Events const & Window::GetEvents() const {
+    return events;
+}
 
 Window::~Window() {
     glfwDestroyWindow(window);
     glfwTerminate();
+}
+
+void Window::ProcessEvents() {
+    events.keyboard.W = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
+    events.keyboard.A = (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
+    events.keyboard.S = (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS);
+    events.keyboard.D = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
+    events.keyboard.E = (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS);
+    events.keyboard.Q = (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS);
+    events.keyboard.ARROW_UP = (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS);
+    events.keyboard.ARROW_DOWN = (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS);
+    events.keyboard.ARROW_LEFT = (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS);
+    events.keyboard.ARROW_RIGHT = (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS);
 }
 
 }

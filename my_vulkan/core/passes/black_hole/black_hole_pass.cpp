@@ -41,6 +41,15 @@ void BlackHolePass::RecordCommandBuffer(VkDevice device, VkCommandBuffer command
     Utils::ImagePipelineBarrier(commandBuffer, *pFinalImage, VK_IMAGE_LAYOUT_GENERAL,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
+    // Update Push Constants
+    camera.Update();
+    auto const &position = camera.GetPosition();
+    auto const &direction = camera.GetDirection();
+    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
+        PUSH_CONSTANT_CAMERA_POSITION_OFFSET, 3U*sizeof(float), &position);
+    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
+        PUSH_CONSTANT_CAMERA_DIRECTION_OFFSET, 3U*sizeof(float), &direction);
+
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0U, 1U, &descriptorSet, 0U, nullptr);
     vkCmdDispatch(commandBuffer, WINDOW_SIZE_WIDTH/LOCAL_SIZE_X, WINDOW_SIZE_HEIGHT/LOCAL_SIZE_Y, 1U);
@@ -123,14 +132,22 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
 }
 
 void BlackHolePass::InitPipeline(VkDevice device) {
+    VkPushConstantRange pushConstantRanges[] = {
+        {
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .offset = PUSH_CONSTANT_CAMERA_POSITION_OFFSET,
+            .size = PUSH_CONSTANT_CAMERA_DIRECTION_OFFSET + 3U*sizeof(float)
+        }
+    };
+
     VkPipelineLayoutCreateInfo pipelineLayoutCI {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0U,
         .setLayoutCount = 1U,
         .pSetLayouts = &descriptorSetLayout,
-        .pushConstantRangeCount = 0U,
-        .pPushConstantRanges = nullptr
+        .pushConstantRangeCount = std::size(pushConstantRanges),
+        .pPushConstantRanges = pushConstantRanges
     };
 
     VK_CALL(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));

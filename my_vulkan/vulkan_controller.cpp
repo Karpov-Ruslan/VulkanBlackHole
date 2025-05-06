@@ -1,6 +1,6 @@
 #include "vulkan_controller.hpp"
-#include "window.hpp"
-#include "utils.hpp"
+#include "utils/window.hpp"
+#include "my_vulkan/utils.hpp"
 
 #include <algorithm>
 #include <format>

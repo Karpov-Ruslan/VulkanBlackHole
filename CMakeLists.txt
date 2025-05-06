@@ -21,11 +21,12 @@ add_executable(${PROJECT_NAME}
     main.cpp
     app.cpp
     utils/clock.cpp
+    utils/window.cpp
+    utils/camera.cpp
     my_vulkan/utils.cpp
     my_vulkan/gpu_allocator.cpp
     my_vulkan/vulkan_controller.cpp
     my_vulkan/vulkan_functions.cpp
-    my_vulkan/window.cpp
     my_vulkan/shaders/shaders_list.cpp
     my_vulkan/core/core.cpp
     my_vulkan/core/passes/black_hole/black_hole_pass.cpp

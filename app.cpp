@@ -1,6 +1,6 @@
 #include "app.hpp"
 
-#include "my_vulkan/window.hpp"
+#include "utils/window.hpp"
 
 namespace KRV {
 

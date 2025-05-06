@@ -14,6 +14,28 @@ namespace KRV {
 // Abstract Window class
 class Window final {
 public:
+    struct Events final {
+        struct Keyboard final {
+            bool W = false;
+            bool A = false;
+            bool S = false;
+            bool D = false;
+            bool E = false;
+            bool Q = false;
+            bool ARROW_UP = false;
+            bool ARROW_DOWN = false;
+            bool ARROW_LEFT = false;
+            bool ARROW_RIGHT = false;
+        };
+
+        struct Mouse final {
+            // TODO: Add mouse events
+        };
+
+        Keyboard keyboard;
+        Mouse mouse;
+    };
+
     static Window& GetInstance();
 
     std::vector<char const *> GetVulkanSurfaceExtensions();
@@ -25,6 +47,7 @@ public:
 
     bool ShouldClose();
     void PollEvents();
+    Events const & GetEvents() const;
 
 private:
     Window();
@@ -36,6 +59,9 @@ private:
 
     ~Window();
 
+    void ProcessEvents();
+
+    Events events;
     GLFWwindow *window = nullptr;
 };
 
