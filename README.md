@@ -1,6 +1,7 @@
 # Black Hole Simulation
 
 ## Requirements
+* C++20
 * Platform: Windows
 * Vulkan SDK
 * GLFW
