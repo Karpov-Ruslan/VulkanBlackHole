@@ -15,7 +15,7 @@ const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK
 
 // Ray Marching params
 const float STOP_INV_RADIUS_ITER = INV_BLACK_HOLE_RADIUS * 0.01F;
-const float TAN_STOP_ITER = 0.001F;
+const float TAN_STOP_ITER = 100.0F;
 const uint MAX_STEPS = 10000U;
 const float h = 0.003F;
 
@@ -48,11 +48,11 @@ vec3 initializeStartGrid() {
     return cameraDir + horizontalCameraVec*xy.x + verticalCameraVec*xy.y;
 }
 
-float rand(float n){
+float rand(float n) {
     return fract(sin(n) * 43758.5453123F);
 }
 
-float noise(float p){
+float noise(float p) {
 	float fl = floor(p);
     float fc = fract(p);
 	return mix(rand(fl), rand(fl + 1.0F), fc);
@@ -106,23 +106,23 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     float phi = 0.0F;
 
     // Forward declaration
-    vec3 direction;
-    vec3 position;
+    vec3 direction = pixelCameraDir;
+    vec3 position = cameraPos;
     vec3 outputColor = vec3(0.0F);
 
     for (uint i = 0U; i < MAX_STEPS; ++i) {
-        uInfo = rk4(uInfo, h);
-        phi += h;
-
         // Case: Fall into black hole
         if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
             return outputColor;
         }
 
-        // Case: The ray is far away from the black hole, so can stop the cycle.
-        if (uInfo.y < TAN_STOP_ITER*INV_BLACK_HOLE_RADIUS && uInfo.x < STOP_INV_RADIUS_ITER) {
+        // Case: The ray is already flying in a straight line
+        if (uInfo.y < -TAN_STOP_ITER*uInfo.x) {
             break;
         }
+
+        uInfo = rk4(uInfo, h);
+        phi += h;
 
         transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
         outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK;
