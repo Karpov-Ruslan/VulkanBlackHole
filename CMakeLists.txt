@@ -60,6 +60,6 @@ add_custom_target(SPIRV_GENERATION
 )
 add_dependencies(${PROJECT_NAME} SPIRV_GENERATION)
 
-find_package(glfw3 3.4 REQUIRED)
+find_package(glfw3 REQUIRED)
 
-target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} libglfw3.a)
