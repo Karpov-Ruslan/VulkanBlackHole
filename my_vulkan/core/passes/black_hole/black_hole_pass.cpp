@@ -249,7 +249,7 @@ void BlackHolePass::InitPipeline(VkDevice device) {
 
     Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE_LAYOUT, pipelineLayout, "BlackHolePass::PipelineLayout");
 
-    VkShaderModule blackHoleComp = Utils::GetShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_COMP);
+    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_COMP);
 
     VkPipelineShaderStageCreateInfo stageCI {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -274,8 +274,6 @@ void BlackHolePass::InitPipeline(VkDevice device) {
     VK_CALL(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1U, &pipelineCI, nullptr, &pipeline));
 
     Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE, pipeline, "BlackHolePass::Pipeline");
-
-    vkDestroyShaderModule(device, blackHoleComp, nullptr);
 }
 
 Image& BlackHolePass::GetFinalImage() {

@@ -10,13 +10,23 @@ enum class SHADER_LIST_ID {
     BLACK_HOLE_COMP
 };
 
-const std::unordered_map<SHADER_LIST_ID, std::vector<uint32_t>> shaderList = {
-    {
-        SHADER_LIST_ID::BLACK_HOLE_COMP,
-        #include <black_hole.comp.spv>
-    }
-};
+class ShaderModule final {
+public:
+    ShaderModule(VkDevice device, SHADER_LIST_ID id);
 
-VkShaderModule GetShaderModule(VkDevice device, SHADER_LIST_ID id);
+    // Force RVO
+    ShaderModule(ShaderModule const &) = delete;
+    ShaderModule& operator=(ShaderModule const &) = delete;
+    ShaderModule(ShaderModule &&) = delete;
+    ShaderModule& operator=(ShaderModule &&) = delete;
+
+    ~ShaderModule();
+
+    operator VkShaderModule() {return shaderModule;}
+
+private:
+    VkDevice device = VK_NULL_HANDLE;
+    VkShaderModule shaderModule = VK_NULL_HANDLE;
+};
 
 }

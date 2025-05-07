@@ -4,10 +4,17 @@
 
 namespace KRV::Utils {
 
-VkShaderModule GetShaderModule(VkDevice device, SHADER_LIST_ID id) {
-    const auto& shaderData = shaderList.at(id);
+const std::unordered_map<SHADER_LIST_ID, std::vector<uint32_t>> shaderList = {
+    {
+        SHADER_LIST_ID::BLACK_HOLE_COMP,
+        #include <black_hole.comp.spv>
+    }
+};
 
-    const VkShaderModuleCreateInfo shaderModuleCreateInfo {
+ShaderModule::ShaderModule(VkDevice device, SHADER_LIST_ID id) : device(device) {
+    auto const &shaderData = shaderList.at(id);
+
+    VkShaderModuleCreateInfo const shaderModuleCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0U,
@@ -15,11 +22,11 @@ VkShaderModule GetShaderModule(VkDevice device, SHADER_LIST_ID id) {
         .pCode = shaderData.data()
     };
 
-    VkShaderModule shaderModule = VK_NULL_HANDLE;
-
     VK_CALL(vkCreateShaderModule(device, &shaderModuleCreateInfo, nullptr, &shaderModule));
+}
 
-    return shaderModule;
+ShaderModule::~ShaderModule() {
+    vkDestroyShaderModule(device, shaderModule, nullptr);
 }
 
 }

@@ -17,9 +17,9 @@ void Camera::Update() {
 
     float time = clock.Reset();
 
-    constexpr static float PI_4 = std::numbers::pi/4.0F;
-    if (events.keyboard.ARROW_UP) {polarAngle = std::clamp(polarAngle + rotation_speed*time, -PI_4, PI_4);}
-    if (events.keyboard.ARROW_DOWN) {polarAngle = std::clamp(polarAngle - rotation_speed*time, -PI_4, PI_4);}
+    constexpr static float PI_2 = std::numbers::pi/2.0F - 0.05F;
+    if (events.keyboard.ARROW_UP) {polarAngle = std::clamp(polarAngle + rotation_speed*time, -PI_2, PI_2);}
+    if (events.keyboard.ARROW_DOWN) {polarAngle = std::clamp(polarAngle - rotation_speed*time, -PI_2, PI_2);}
     if (events.keyboard.ARROW_LEFT) {azimutalAngle += rotation_speed*time;}
     if (events.keyboard.ARROW_RIGHT) {azimutalAngle -= rotation_speed*time;}
     direction = glm::vec3(std::cos(polarAngle)*std::cos(azimutalAngle),

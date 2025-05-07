@@ -60,7 +60,6 @@ add_custom_target(SPIRV_GENERATION
 )
 add_dependencies(${PROJECT_NAME} SPIRV_GENERATION)
 
-target_include_directories(${PROJECT_NAME} PUBLIC "D:/CLion 2024.1.4/bin/mingw/include/glfw")
-target_link_directories(${PROJECT_NAME} PUBLIC "D:/CLion 2024.1.4/bin/mingw/lib/glfw")
+find_package(glfw3 3.4 REQUIRED)
 
-target_link_libraries(${PROJECT_NAME} glfw3 ${Vulkan_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
