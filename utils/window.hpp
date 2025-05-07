@@ -22,6 +22,7 @@ public:
             bool D = false;
             bool E = false;
             bool Q = false;
+            bool ESC = false;
             bool ARROW_UP = false;
             bool ARROW_DOWN = false;
             bool ARROW_LEFT = false;
@@ -29,7 +30,10 @@ public:
         };
 
         struct Mouse final {
-            // TODO: Add mouse events
+            float POS_X = 0.0F;
+            float POS_Y = 0.0F;
+            float DELTA_POS_X = 0.0F;
+            float DELTA_POS_Y = 0.0F;
         };
 
         Keyboard keyboard;

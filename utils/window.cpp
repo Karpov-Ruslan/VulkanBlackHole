@@ -38,7 +38,7 @@ Window::Window() {
 
     window = glfwCreateWindow(WINDOW_SIZE_WIDTH, WINDOW_SIZE_HEIGHT, "Vulkan", nullptr, nullptr);
 
-    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 VkWin32SurfaceCreateInfoKHR Window::GetVulkanSurfaceCreateInfo() {
@@ -70,7 +70,7 @@ VkExtent2D Window::GetWindowSize() {
 }
 
 bool Window::ShouldClose() {
-    return glfwWindowShouldClose(window);
+    return glfwWindowShouldClose(window) || events.keyboard.ESC;
 }
 
 void Window::PollEvents() {
@@ -88,16 +88,29 @@ Window::~Window() {
 }
 
 void Window::ProcessEvents() {
+    // Keyboard
     events.keyboard.W = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
     events.keyboard.A = (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
     events.keyboard.S = (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS);
     events.keyboard.D = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
     events.keyboard.E = (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS);
     events.keyboard.Q = (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS);
+    events.keyboard.ESC = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);
     events.keyboard.ARROW_UP = (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS);
     events.keyboard.ARROW_DOWN = (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS);
     events.keyboard.ARROW_LEFT = (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS);
     events.keyboard.ARROW_RIGHT = (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS);
+
+    // Mouse
+    double curPos_x, curPos_y;
+    glfwGetCursorPos(window, &curPos_x, &curPos_y);
+    curPos_x /= WINDOW_SIZE_WIDTH_F;
+    curPos_y /= WINDOW_SIZE_HEIGHT_F;
+
+    events.mouse.DELTA_POS_X = curPos_x - events.mouse.POS_X;
+    events.mouse.DELTA_POS_Y = curPos_y - events.mouse.POS_Y;
+    events.mouse.POS_X = static_cast<float>(curPos_x);
+    events.mouse.POS_Y = static_cast<float>(curPos_y);
 }
 
 }
