@@ -9,12 +9,11 @@ const float INV_BLACK_HOLE_RADIUS = 1.0F/BLACK_HOLE_RADIUS;
 const float INNER_RADIUS_OF_ACCRETION_DISK = 3.0F*BLACK_HOLE_RADIUS;
 const float OUTER_RADIUS_OF_ACCRETION_DISK = 6.0F*BLACK_HOLE_RADIUS;
 const vec3 ROTATION_AXIS_OF_ACCRETION_DISK = normalize(vec3(0.0F, 0.0F, 4.0F));
-const vec3 COLOR_OF_ACCRETION_DISK = vec3(1.0F, 0.5F, 0.0F) * BLACK_HOLE_RADIUS;
+const vec3 COLOR_OF_ACCRETION_DISK = vec3(1.0F, 0.5F, 0.0F) * BLACK_HOLE_RADIUS * 300.0F;
 const float THICKNESS_OF_ACCRETION_DISK = 0.01F;
 const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK;
 
 // Ray Marching params
-const float STOP_INV_RADIUS_ITER = INV_BLACK_HOLE_RADIUS * 0.01F;
 const float TAN_STOP_ITER = 100.0F;
 const uint MAX_STEPS = 10000U;
 const float h = 0.003F;
@@ -58,14 +57,12 @@ float noise(float p) {
 	return mix(rand(fl), rand(fl + 1.0F), fc);
 }
 
-float limitRadius(float x, float lo, float hi) {
-    return step(lo, x) * step(-hi, -x);
-}
-
 float accretionDiskDensity(vec3 position) {
     float a = -dot(position, ROTATION_AXIS_OF_ACCRETION_DISK);
+    if (abs(a) > THICKNESS_OF_ACCRETION_DISK) {return 0.0F;} // Save performance
     float r = length(position + a*ROTATION_AXIS_OF_ACCRETION_DISK);
-    return max(noise(r*400.0F)*limitRadius(r, INNER_RADIUS_OF_ACCRETION_DISK, OUTER_RADIUS_OF_ACCRETION_DISK) - abs(a)*INV_THICKNESS_OF_ACCRETION_DISK, 0.0F);
+    if (r < INNER_RADIUS_OF_ACCRETION_DISK || r > OUTER_RADIUS_OF_ACCRETION_DISK) {return 0.0F;} // Save performance
+    return max(noise(r*400.0F) - abs(a)*INV_THICKNESS_OF_ACCRETION_DISK, 0.0F);
 }
 
 // u = 1/r; r - radius
@@ -125,7 +122,7 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
         phi += h;
 
         transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
-        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK;
+        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
     }
 
     // Case: Go into infinity

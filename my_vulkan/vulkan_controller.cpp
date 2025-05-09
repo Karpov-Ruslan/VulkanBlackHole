@@ -76,47 +76,19 @@ void VulkanController::InitPhysicalDevice() {
 
     VK_CALL(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices.data()));
 
-    // Prefer NVIDIA GPU
+    // Prefer discrete GPU
     for (const auto& it : physicalDevices) {
         VkPhysicalDeviceProperties properties;
-
         vkGetPhysicalDeviceProperties(it, &properties);
 
         physicalDevice = it;
-
-        if (properties.vendorID == INTEL_VENDOR_ID) {
+        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ||
+            properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
             return;
         }
     }
 
-    for (const auto &it : physicalDevices) {
-        physicalDevice = it;
-
-        uint32_t extensionsCount = 0U;
-
-        VK_CALL(vkEnumerateDeviceExtensionProperties(it, nullptr, &extensionsCount, nullptr));
-
-        std::vector<VkExtensionProperties> extensionProperties(extensionsCount);
-
-        VK_CALL(vkEnumerateDeviceExtensionProperties(it, nullptr, &extensionsCount, extensionProperties.data()));
-
-        for (uint32_t requiredExtensionIndex = 0U; requiredExtensionIndex < std::size(requiredDeviceExtensions); requiredExtensionIndex++) {
-            bool requiredExtensionIsFound = false;
-            auto const &currentRequiredExtensionName = requiredDeviceExtensions[requiredExtensionIndex];
-            for (uint32_t availableExtensionIndex = 0U; availableExtensionIndex < extensionsCount; availableExtensionIndex++) {
-                if (std::strcmp(extensionProperties[availableExtensionIndex].extensionName, currentRequiredExtensionName) == 0) {
-                    requiredExtensionIsFound = true;
-                    break;
-                }
-            }
-
-            if (!requiredExtensionIsFound) {
-                throw std::runtime_error(std::format("This Vulkan Device Extensions does not supported: {}", currentRequiredExtensionName));
-            }
-        }
-    }
-
-    throw std::runtime_error("There is no supported phisical device");
+    throw std::runtime_error("There is no discrete or integrated phisical device");
 }
 
 void VulkanController::InitQueueFamilyIndex() {
