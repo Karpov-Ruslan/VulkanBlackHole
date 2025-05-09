@@ -6,10 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Werror")
 
-if (${CMAKE_BUILD_TYPE} STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
-endif()
-
 set(VULKAN_DEBUG_NAMES OFF CACHE BOOL "Use DebugUtils for vulkan debugging")
 
 # Vulkan Specific

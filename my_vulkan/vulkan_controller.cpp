@@ -84,7 +84,7 @@ void VulkanController::InitPhysicalDevice() {
 
         physicalDevice = it;
 
-        if (properties.vendorID == NVIDIA_VENDOR_ID) {
+        if (properties.vendorID == INTEL_VENDOR_ID) {
             return;
         }
     }
@@ -130,18 +130,18 @@ void VulkanController::InitQueueFamilyIndex() {
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilyProperties.data());
 
     // For every queue family check graphics, compute, transfer and presentation flags.
+    constexpr VkQueueFlags requiredQueueFlags = (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT);
     for (queueFamilyIndex = 0U; queueFamilyIndex < queueFamilyCount; queueFamilyIndex++) {
-        if (queueFamilyProperties[queueFamilyIndex].queueFlags == VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT) {
+        if ((queueFamilyProperties[queueFamilyIndex].queueFlags & requiredQueueFlags) == requiredQueueFlags) {
             VkBool32 presentationSupport = VK_FALSE;
             VK_CALL(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndex, surface, &presentationSupport));
-
             if (presentationSupport == VK_TRUE) {
                 return;
             }
         }
     }
 
-    // May be graphic queue and compute queue, but I ignore this case, because I am in comfort zone.
+    // May be only graphic queue and only compute queue, but I ignore this case, because I am in comfort zone.
     throw std::runtime_error(R"(queueFamilies don't support graphics, comput, transfer and presentation together)");
 }
 
@@ -200,11 +200,36 @@ void VulkanController::InitQueue() {
 }
 
 void VulkanController::InitSwapchain() {
-    // Get Surface Present Modes
-    uint32_t presentModeCount = 0U;
-    VK_CALL(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr));
-    std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    VK_CALL(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, presentModes.data()));
+    // Get Surface Present Mode
+    VkPresentModeKHR presentMode = [&](){
+        uint32_t presentModeCount = 0U;
+        VK_CALL(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr));
+        std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+        VK_CALL(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, presentModes.data()));
+
+        struct Checker {
+            bool mailbox = false;
+            bool immediate = false;
+        } checker;
+
+        std::ranges::for_each(presentModes, [&checker](VkPresentModeKHR presentMode){
+            switch (presentMode) {
+                case VK_PRESENT_MODE_MAILBOX_KHR:
+                    checker.mailbox = true;
+                    break;
+                case VK_PRESENT_MODE_IMMEDIATE_KHR:
+                    checker.immediate = true;
+                    break;
+                default:
+                    // Nothing
+                    break;
+            }
+        });
+
+        if (checker.mailbox) {return VK_PRESENT_MODE_MAILBOX_KHR;}
+        if (checker.immediate) {return VK_PRESENT_MODE_IMMEDIATE_KHR;}
+        return VK_PRESENT_MODE_FIFO_KHR; // Always present
+    }();
 
     // Get Surface formats
     uint32_t formatCount = 0U;
@@ -247,7 +272,7 @@ void VulkanController::InitSwapchain() {
         .pQueueFamilyIndices = &queueFamilyIndex,
         .preTransform = capabilities.currentTransform,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        .presentMode = VK_PRESENT_MODE_MAILBOX_KHR,
+        .presentMode = presentMode,
         .clipped = VK_TRUE,
         .oldSwapchain = VK_NULL_HANDLE
     };

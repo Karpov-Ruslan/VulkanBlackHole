@@ -17,12 +17,14 @@ public:
 
 private:
     Clock clock;
-    float fov = 0.0F;
-    float speed = 0.0F;
-    float rotation_speed = 0.0F;
 
     glm::vec3 position = glm::vec3(0.0F);
     glm::vec3 direction = glm::normalize(glm::vec3(1.0F));
+
+    float speed = 0.0F;
+    float rotation_speed = 0.0F;
+    float fov = 0.0F;
+
     float polarAngle = 0.0F;
     float azimutalAngle = 0.0F;
 };
