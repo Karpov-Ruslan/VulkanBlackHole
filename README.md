@@ -1,10 +1,15 @@
-# Black Hole Simulation
+# Real-Time Black Hole Simulation
 
-## Requirements
-* C++20
-* Platform: Windows
-* Vulkan SDK
-* GLFW
+## Launch Requirements
+* Platform: *Windows*
+* PC **must** support *Vulkan*
+
+## Build Requirements
+* Platform: *Windows*
+* *C++20*
+* *Vulkan* SDK
+* *GLFW*
+* *GLM*
 
 ## Application Management
 There are two application control points:

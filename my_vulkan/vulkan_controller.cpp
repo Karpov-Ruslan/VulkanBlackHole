@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <format>
 #include <cstring>
+#include <optional>
 
 namespace {
 
@@ -76,17 +77,22 @@ void VulkanController::InitPhysicalDevice() {
 
     VK_CALL(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices.data()));
 
-    // Prefer discrete GPU
-    for (const auto& it : physicalDevices) {
-        VkPhysicalDeviceProperties properties;
-        vkGetPhysicalDeviceProperties(it, &properties);
+    struct PhysicalDeviceInfo {
+        std::optional<uint32_t> discreteIndex = std::nullopt;
+        std::optional<uint32_t> integratedIndex = std::nullopt;
+    } physicalDeviceInfo;
 
-        physicalDevice = it;
-        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ||
-            properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
-            return;
-        }
+    for (uint32_t i = 0U; i < physicalDeviceCount; i++) {
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(physicalDevices[i], &properties);
+        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {physicalDeviceInfo.discreteIndex = i;}
+        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {physicalDeviceInfo.integratedIndex = i;}
     }
+
+#ifndef VULKAN_IGNORE_DISCRETE_GPU
+    if (auto const &idx = physicalDeviceInfo.discreteIndex; idx) {physicalDevice = physicalDevices[*idx]; return;}
+#endif // VULKAN_IGNORE_DISCRETE_GPU
+    if (auto const &idx = physicalDeviceInfo.integratedIndex; idx) {physicalDevice = physicalDevices[*idx]; return;}
 
     throw std::runtime_error("There is no discrete or integrated phisical device");
 }

@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Werror")
 
 set(VULKAN_DEBUG_NAMES OFF CACHE BOOL "Use DebugUtils for vulkan debugging")
+set(VULKAN_IGNORE_DISCRETE_GPU OFF CACHE BOOL "Use integrated GPU for rendering")
 
 # Vulkan Specific
 add_compile_definitions("VK_NO_PROTOTYPES")
@@ -14,6 +15,10 @@ add_compile_definitions("VK_USE_PLATFORM_WIN32_KHR")
 
 if(VULKAN_DEBUG_NAMES)
     add_compile_definitions("VULKAN_DEBUG")
+endif()
+
+if(VULKAN_IGNORE_DISCRETE_GPU)
+    add_compile_definitions("VULKAN_IGNORE_DISCRETE_GPU")
 endif()
 
 # Source files
