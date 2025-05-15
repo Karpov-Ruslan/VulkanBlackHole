@@ -344,7 +344,7 @@ void VulkanController::RecordCommandBuffer(VkImage swapchainImage, uint32_t fif)
                 }
             };
 
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0U, nullptr, 0U, nullptr, 1U, &firstImageMemoryBarrier);
 
             VkImageBlit const region = VkImageBlit{

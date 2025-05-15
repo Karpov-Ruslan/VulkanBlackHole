@@ -4,10 +4,15 @@ project(VulkanNonEuclidian)
 
 set(CMAKE_CXX_STANDARD 20)
 
-set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Werror")
+set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Werror -static")
 
 set(VULKAN_DEBUG_NAMES OFF CACHE BOOL "Use DebugUtils for vulkan debugging")
 set(VULKAN_IGNORE_DISCRETE_GPU OFF CACHE BOOL "Use integrated GPU for rendering")
+
+set(BLACK_HOLE_RENDER_MODE "RAY_MARCHING" CACHE STRING "May be 'RAY_MARCHING', 'PRECOMPUTED'")
+set_property(CACHE BLACK_HOLE_RENDER_MODE PROPERTY STRINGS "RAY_MARCHING" "PRECOMPUTED")
+
+add_compile_definitions("BLACK_HOLE_${BLACK_HOLE_RENDER_MODE}")
 
 # Vulkan Specific
 add_compile_definitions("VK_NO_PROTOTYPES")
@@ -35,6 +40,7 @@ add_executable(${PROJECT_NAME}
     my_vulkan/shaders/shaders_list.cpp
     my_vulkan/core/core.cpp
     my_vulkan/core/passes/black_hole/black_hole_pass.cpp
+    my_vulkan/core/passes/black_hole/black_hole_precompute_pass.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

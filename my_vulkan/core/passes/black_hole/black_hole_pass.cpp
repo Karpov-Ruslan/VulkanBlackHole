@@ -5,7 +5,10 @@
 
 #include "my_vulkan/vulkan_functions.hpp"
 
+#include "common.hpp"
+
 #include <cstring>
+#include <cmath>
 
 // TODO: Move it into another file
 #define STB_IMAGE_IMPLEMENTATION
@@ -40,6 +43,10 @@ void BlackHolePass::AllocateResources(VkDevice device, Utils::GPUAllocator& gpuA
     pFinalImage = &gpuAllocator.AddImage(device, createImageInfo);
 
     AllocateCubeMap(device, gpuAllocator);
+
+#ifdef BLACK_HOLE_PRECOMPUTED
+    pPrecomputedTexture = &gpuAllocator.GetImage(PRECOMPUTED_TEXTURE_NAME);
+#endif // BLACK_HOLE_PRECOMPUTED
 }
 
 void BlackHolePass::Init(VkDevice device) {
@@ -59,9 +66,9 @@ void BlackHolePass::Destroy(VkDevice device) {
 void BlackHolePass::RecordCommandBuffer(VkDevice device, VkCommandBuffer commandBuffer) {
     Utils::DebugUtils::LabelGuard labelGuard(commandBuffer, "BlackHolePass", 0.5F, 0.0F, 0.0F);
 
-    if (!cubeMapIsLoaded) {
+    if (isFirstRecording) {
         LoadCubeMap(device, commandBuffer);
-        cubeMapIsLoaded = true;
+        isFirstRecording = false;
     }
 
     // Force to undefined image layout, because of performance
@@ -117,7 +124,11 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
         {
             .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+#ifndef BLACK_HOLE_PRECOMPUTED
             .descriptorCount = 1U
+#else
+            .descriptorCount = 2U
+#endif // BLACK_HOLE_PRECOMPUTED
         },
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -153,6 +164,15 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = &sampler
         }
+#ifdef BLACK_HOLE_PRECOMPUTED
+        ,{
+            .binding = BINDING_PRECOMPUTED_TEXTURE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1U,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = &sampler
+        }
+#endif // BLACK_HOLE_PRECOMPUTED
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo {
@@ -192,6 +212,14 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .imageView = pCubeMap->imageView,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }
+#ifdef BLACK_HOLE_PRECOMPUTED
+        // Precomputed Texture
+        ,{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = pPrecomputedTexture->imageView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        }
+#endif // BLACK_HOLE_PRECOMPUTED
     };
 
     VkWriteDescriptorSet writeDescriptors[] = {
@@ -221,6 +249,20 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .pBufferInfo = nullptr,
             .pTexelBufferView = nullptr
         }
+#ifdef BLACK_HOLE_PRECOMPUTED
+        ,{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = descriptorSet,
+            .dstBinding = BINDING_PRECOMPUTED_TEXTURE,
+            .dstArrayElement = 0U,
+            .descriptorCount = 1U,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &descriptorImageInfo[2],
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
+        }
+#endif // BLACK_HOLE_PRECOMPUTED
     };
 
     vkUpdateDescriptorSets(device, std::size(writeDescriptors), writeDescriptors, 0U, nullptr);
@@ -249,7 +291,11 @@ void BlackHolePass::InitPipeline(VkDevice device) {
 
     Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE_LAYOUT, pipelineLayout, "BlackHolePass::PipelineLayout");
 
-    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_COMP);
+#ifdef BLACK_HOLE_PRECOMPUTED
+    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTED_COMP);
+#else
+    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_RAY_MARCHING_COMP);
+#endif // BLACK_HOLE_PRECOMPUTED
 
     VkPipelineShaderStageCreateInfo stageCI {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -311,7 +357,7 @@ void BlackHolePass::AllocateCubeMap(VkDevice device, Utils::GPUAllocator& gpuAll
 }
 
 void BlackHolePass::LoadCubeMap(VkDevice device, VkCommandBuffer commandBuffer) {
-    Utils::DebugUtils::LabelGuard loadCubeMapGuard(commandBuffer, "BlackHolePass::LoadCubeMap", 0.0F, 1.0F, 0.0F);
+    Utils::DebugUtils::LabelGuard loadGuard(commandBuffer, "BlackHolePass::LoadCubeMap", 0.0F, 1.0F, 0.0F);
 
     // Tricky barriers: They are executed after map operation, because we just write commands into commandBuffer
     Utils::MemoryPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_WRITE_BIT,
@@ -379,6 +425,5 @@ void BlackHolePass::LoadCubeMap(VkDevice device, VkCommandBuffer commandBuffer) 
     Utils::ImagePipelineBarrier(commandBuffer, *pCubeMap, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, {VK_IMAGE_ASPECT_COLOR_BIT, 0U, 1U, 0U, cubeMapFacesNum});
 }
-
 
 }

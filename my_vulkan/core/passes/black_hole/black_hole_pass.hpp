@@ -35,7 +35,12 @@ private:
 
     Image *pCubeMap = nullptr;
     Buffer *pStagingBuffer = nullptr;
-    bool cubeMapIsLoaded = false;
+    bool isFirstRecording = true;
+
+#ifdef BLACK_HOLE_PRECOMPUTED
+    // Just take it from precompute pass, there is no allocation of this resource.
+    Image *pPrecomputedTexture = nullptr;
+#endif // BLACK_HOLE_PRECOMPUTED
 
     VkSampler sampler = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;

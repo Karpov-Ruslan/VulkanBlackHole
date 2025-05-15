@@ -181,11 +181,11 @@ Buffer& GPUAllocator::AddBuffer(VkDevice device, const CreateBufferInfo& createB
 }
 
 Image& GPUAllocator::GetImage(std::string_view const &name) {
-    return *imageMapper[name];
+    return *imageMapper[name.data()];
 }
 
 Buffer& GPUAllocator::GetBuffer(std::string_view const &name) {
-    return *bufferMapper[name];
+    return *bufferMapper[name.data()];
 }
 
 void GPUAllocator::PresentResources(VkDevice device) {

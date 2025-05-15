@@ -7,7 +7,9 @@
 namespace KRV::Utils {
 
 enum class SHADER_LIST_ID {
-    BLACK_HOLE_COMP
+    BLACK_HOLE_RAY_MARCHING_COMP,
+    BLACK_HOLE_PRECOMPUTED_COMP,
+    BLACK_HOLE_PRECOMPUTE_PRECOMPUTED_TEXTURE_COMP,
 };
 
 class ShaderModule final {

@@ -1,11 +1,11 @@
-#version 460
-
 #include "black_hole.in"
 
 // Black Hole params
 // Black hole center is (0.0, 0.0, 0.0)
-const float BLACK_HOLE_RADIUS = 0.05F; // Schwarzschild radius
 const float INV_BLACK_HOLE_RADIUS = 1.0F/BLACK_HOLE_RADIUS;
+
+#ifdef RAY_MARCHING
+
 const float INNER_RADIUS_OF_ACCRETION_DISK = 3.0F*BLACK_HOLE_RADIUS;
 const float OUTER_RADIUS_OF_ACCRETION_DISK = 6.0F*BLACK_HOLE_RADIUS;
 const vec3 ROTATION_AXIS_OF_ACCRETION_DISK = normalize(vec3(0.0F, 0.0F, 4.0F));
@@ -14,9 +14,10 @@ const float THICKNESS_OF_ACCRETION_DISK = 0.01F;
 const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK;
 
 // Ray Marching params
-const float TAN_STOP_ITER = 100.0F;
 const uint MAX_STEPS = 10000U;
 const float h = 0.003F;
+
+#endif // RAY_MARCHING
 
 // Camera params
 const float HALF_FOV_HORIZONTAL_TAN = tan(radians(60));
@@ -25,6 +26,12 @@ layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 
 
 layout(set = 0, binding = BINDING_FINAL_IMAGE, rgba8) uniform restrict writeonly image2D outImage;
 layout(set = 0, binding = BINDING_CUBE_MAP) uniform samplerCube spaceCubeMap;
+
+#ifdef PRECOMPUTED
+
+layout(set = 0, binding = BINDING_PRECOMPUTED_TEXTURE) uniform sampler2D precomputedTexture;
+
+#endif // PRECOMPUTED
 
 layout(push_constant) uniform PushConst {
     layout(offset = PUSH_CONSTANT_CAMERA_POSITION_OFFSET)  vec3 cameraPos;
@@ -47,6 +54,33 @@ vec3 initializeStartGrid() {
     return cameraDir + horizontalCameraVec*xy.x + verticalCameraVec*xy.y;
 }
 
+// u = 1/r; r - radius
+// uInfo = vec2(u, d(u)/d(phi));
+void transformUInfoIntoDirectionAndPosition(vec2 uInfo, float phi, vec3 rotationAxis, out vec3 position, out vec3 direction) {
+    vec3 normCameraPos = normalize(cameraPos);
+    vec3 normRotationAxis = normalize(rotationAxis);
+    vec3 normPerpendicular = cross(normRotationAxis, normCameraPos); // Normalized Perpendicular
+    vec3 normPosition = normCameraPos * cos(phi) + normPerpendicular * sin(phi);
+    float radius = (1.0F/uInfo.x);
+    position = normPosition*radius;
+    direction = normalize(cross(normRotationAxis, normPosition) - normPosition*uInfo.y*radius);
+}
+
+#ifdef PRECOMPUTED
+
+float SampleAngle(vec2 uInfo) {
+    if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
+        return PRECOMPUTED_TEXTURE_SPECIAL_VALUE;
+    }
+
+    const float inv_pi = 0.318309886183790671538F;
+    return texture(precomputedTexture, vec2(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F))).r;
+}
+
+#endif
+
+#ifdef RAY_MARCHING
+
 float rand(float n) {
     return fract(sin(n) * 43758.5453123F);
 }
@@ -65,34 +99,9 @@ float accretionDiskDensity(vec3 position) {
     return max(noise(r*400.0F) - abs(a)*INV_THICKNESS_OF_ACCRETION_DISK, 0.0F);
 }
 
-// u = 1/r; r - radius
-// uInfo = vec2(u, d(u)/d(phi));
-void transformUInfoIntoDirectionAndPosition(vec2 uInfo, float phi, vec3 rotationAxis, out vec3 position, out vec3 direction) {
-    vec3 normCameraPos = normalize(cameraPos);
-    vec3 normRotationAxis = normalize(rotationAxis);
-    vec3 normPerpendicular = cross(normRotationAxis, normCameraPos); // Normalized Perpendicular
-    vec3 normPosition = normCameraPos * cos(phi) + normPerpendicular * sin(phi);
-    float radius = (1.0F/uInfo.x);
-    position = normPosition*radius;
-    direction = normalize(cross(normRotationAxis, normPosition) - normPosition*uInfo.y*radius);
-}
+#include "black_hole_runge_kutte.glsl"
 
-// u = 1/r; r - radius
-// uInfo = vec2(u, d(u)/d(phi));
-vec2 f(vec2 uInfo) {
-    return vec2(uInfo.y, 1.5F*BLACK_HOLE_RADIUS*uInfo.x*uInfo.x - uInfo.x);
-}
-
-// Explicit Runge-Kutta method (RK4)
-// u = 1/r; r - radius
-// uInfo = vec2(u, d(u)/d(phi));
-vec2 rk4(vec2 uInfo, float h) {
-    vec2 k1 = f(uInfo);
-    vec2 k2 = f(uInfo + k1*h*0.5F);
-    vec2 k3 = f(uInfo + k2*h*0.5F);
-    vec2 k4 = f(uInfo + k3*h);
-    return uInfo + 0.166666666666666666667F*h*(k1 + 2.0F*k2 + 2.0F*k3 + k4);
-}
+#endif // RAY_MARCHING
 
 vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     // u = 1/r; r - radius
@@ -106,6 +115,8 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     vec3 direction = pixelCameraDir;
     vec3 position = cameraPos;
     vec3 outputColor = vec3(0.0F);
+
+#ifdef RAY_MARCHING
 
     for (uint i = 0U; i < MAX_STEPS; ++i) {
         // Case: Fall into black hole
@@ -127,8 +138,22 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
 
     // Case: Go into infinity
     transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
-    outputColor += texture(spaceCubeMap, direction).xyz;
+    outputColor += texture(spaceCubeMap, direction).rgb;
     return outputColor;
+
+#elif defined(PRECOMPUTED)
+
+    phi = SampleAngle(uInfo);
+
+    if (isnan(phi) || phi > 9.0F) {
+        return vec3(0.0F);
+    }
+
+    transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
+    return texture(spaceCubeMap, position).rgb;
+
+#endif // RAY_MARCHING, PRECOMPUTED
+
 }
 
 void main() {

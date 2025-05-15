@@ -6,8 +6,16 @@ namespace KRV::Utils {
 
 const std::unordered_map<SHADER_LIST_ID, std::vector<uint32_t>> shaderList = {
     {
-        SHADER_LIST_ID::BLACK_HOLE_COMP,
-        #include <black_hole.comp.spv>
+        SHADER_LIST_ID::BLACK_HOLE_RAY_MARCHING_COMP,
+        #include <black_hole_ray_marching.comp.spv>
+    },
+    {
+        SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTED_COMP,
+        #include <black_hole_precomputed.comp.spv>
+    },
+    {
+        SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_PRECOMPUTED_TEXTURE_COMP,
+        #include <black_hole_precompute_precomputed_texture.comp.spv>
     }
 };
 

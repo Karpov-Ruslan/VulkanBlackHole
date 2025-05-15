@@ -2,9 +2,22 @@
 
 #include "passes/black_hole/black_hole_pass.hpp"
 
+#ifdef BLACK_HOLE_PRECOMPUTED
+
+#include "passes/black_hole/black_hole_precompute_pass.hpp"
+
+#endif // BLACK_HOLE_PRECOMPUTED
+
 namespace KRV {
 
 Core::Core() {
+
+#ifdef BLACK_HOLE_PRECOMPUTED
+
+    passes.emplace_back(std::make_unique<BlackHolePrecomputePass>());
+
+#endif // BLACK_HOLE_PRECOMPUTED
+
     // Black Hole Pass
     passes.emplace_back(std::make_unique<BlackHolePass>());
 }

@@ -1,0 +1,42 @@
+#version 460
+
+#include "black_hole.in"
+
+layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 1U) in;
+
+layout(set = 0, binding = BINDING_PRECOMPUTED_TEXTURE, r32f) uniform restrict writeonly image2D precomputedTexture;
+
+const uint MAX_STEPS = 10000U;
+const float h = 0.003F;
+
+#include "black_hole_runge_kutte.glsl"
+
+// x in range [0.0F, 1.0F]
+float AvoidOverflow(float x) {
+    return fma(x, 0.9999F, 0.00005F);
+}
+
+float RungeKutte(vec2 uInfo, float phi) {
+    for (uint i = 0U; i < MAX_STEPS; i++) {
+        if (uInfo.x > 1.0F/BLACK_HOLE_RADIUS) {
+            return PRECOMPUTED_TEXTURE_SPECIAL_VALUE;
+        }
+
+        if (uInfo.y < -TAN_STOP_ITER*uInfo.x) {
+            break;
+        }
+
+        uInfo = rk4(uInfo, h);
+        phi += h;
+    }
+
+    return phi;
+}
+
+void main() {
+    float phi = 0.0F;
+    float u = AvoidOverflow(float(gl_GlobalInvocationID.x)/float(PRECOMPUTED_TEXTURE_WIDTH - 1U))/BLACK_HOLE_RADIUS;
+    const float pi = 3.14159265358979323846F;
+    vec2 uInfo = vec2(u, -tan((AvoidOverflow(float(gl_GlobalInvocationID.y)/float(PRECOMPUTED_TEXTURE_HEIGHT - 1U)) - 0.5F)*pi) * u);
+    imageStore(precomputedTexture, ivec2(gl_GlobalInvocationID.xy), vec4(RungeKutte(uInfo, phi), vec3(0.0F)));
+}

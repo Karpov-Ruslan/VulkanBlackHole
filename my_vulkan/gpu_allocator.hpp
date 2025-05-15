@@ -85,11 +85,11 @@ private:
 
     // Image queue
     std::list<ImageInfo> imageInfos;
-    std::unordered_map<std::string_view, Image*> imageMapper;
+    std::unordered_map<std::string, Image*> imageMapper;
 
     // Buffer queue
     std::list<BufferInfo> bufferInfos;
-    std::unordered_map<std::string_view, Buffer*> bufferMapper;
+    std::unordered_map<std::string, Buffer*> bufferMapper;
 
     // Memory
     VkPhysicalDeviceMemoryProperties memoryProperties = {};
