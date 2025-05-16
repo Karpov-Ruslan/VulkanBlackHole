@@ -8,12 +8,13 @@ layout(set = 0, binding = BINDING_PRECOMPUTED_TEXTURE, r32f) uniform restrict wr
 
 const uint MAX_STEPS = 10000U;
 const float h = 0.003F;
+const float TAN_STOP_ITER = 1000.0F;
 
 #include "black_hole_runge_kutte.glsl"
 
 // x in range [0.0F, 1.0F]
 float AvoidOverflow(float x) {
-    return fma(x, 0.9999F, 0.00005F);
+    return fma(x, 0.99999F, 0.000005F);
 }
 
 float RungeKutte(vec2 uInfo, float phi) {

@@ -27,12 +27,14 @@ void Camera::Update() {
     direction = glm::vec3(std::cos(polarAngle)*std::cos(azimutalAngle),
         std::cos(polarAngle)*std::sin(azimutalAngle), std::sin(polarAngle));
 
-    if (events.keyboard.W) {position += direction*speed*time;}
-    if (events.keyboard.S) {position -= direction*speed*time;}
-    if (events.keyboard.A) {position -= glm::normalize(glm::vec3(direction.y, -direction.x, 0.0F))*speed*time;}
-    if (events.keyboard.D) {position += glm::normalize(glm::vec3(direction.y, -direction.x, 0.0F))*speed*time;}
-    if (events.keyboard.E) {position -= glm::vec3(0.0F, 0.0F, 1.0F)*speed*time;}
-    if (events.keyboard.Q) {position += glm::vec3(0.0F, 0.0F, 1.0F)*speed*time;}
+    float multiplier = glm::length(position)*3.0F;
+
+    if (events.keyboard.W) {position += direction*speed*time*multiplier;}
+    if (events.keyboard.S) {position -= direction*speed*time*multiplier;}
+    if (events.keyboard.A) {position -= glm::normalize(glm::vec3(direction.y, -direction.x, 0.0F))*speed*time*multiplier;}
+    if (events.keyboard.D) {position += glm::normalize(glm::vec3(direction.y, -direction.x, 0.0F))*speed*time*multiplier;}
+    if (events.keyboard.E) {position -= glm::vec3(0.0F, 0.0F, 1.0F)*speed*time*multiplier;}
+    if (events.keyboard.Q) {position += glm::vec3(0.0F, 0.0F, 1.0F)*speed*time*multiplier;}
 }
 
 glm::vec3 const & Camera::GetPosition() const {

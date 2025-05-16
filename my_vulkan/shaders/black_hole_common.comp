@@ -15,6 +15,7 @@ const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK
 
 // Ray Marching params
 const uint MAX_STEPS = 10000U;
+const float TAN_STOP_ITER = 100.0F;
 const float h = 0.003F;
 
 #endif // RAY_MARCHING
@@ -74,10 +75,16 @@ float SampleAngle(vec2 uInfo) {
     }
 
     const float inv_pi = 0.318309886183790671538F;
-    return texture(precomputedTexture, vec2(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F))).r;
+    vec2 rawUV = vec2(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F));
+
+    const vec2 precomputedTextureSize = vec2(PRECOMPUTED_TEXTURE_WIDTH, PRECOMPUTED_TEXTURE_HEIGHT);
+    const vec2 multiplier = (precomputedTextureSize - vec2(1.0F))/precomputedTextureSize;
+    const vec2 addition = vec2(0.5F)/precomputedTextureSize;
+
+    return texture(precomputedTexture, fma(rawUV, multiplier, addition)).r;
 }
 
-#endif
+#endif // PRECOMPUTED
 
 #ifdef RAY_MARCHING
 
