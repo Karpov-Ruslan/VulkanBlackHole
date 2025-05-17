@@ -293,9 +293,11 @@ void BlackHolePass::InitPipeline(VkDevice device) {
 
 #ifdef BLACK_HOLE_PRECOMPUTED
     Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTED_COMP);
-#else
-    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_RAY_MARCHING_COMP);
-#endif // BLACK_HOLE_PRECOMPUTED
+#elif defined(BLACK_HOLE_RAY_MARCHING_RK2)
+    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_RAY_MARCHING_RK2_COMP);
+#else // defined(BLACK_HOLE_RAY_MARCHING_RK4)
+    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_RAY_MARCHING_RK4_COMP);
+#endif
 
     VkPipelineShaderStageCreateInfo stageCI {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,

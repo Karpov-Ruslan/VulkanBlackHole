@@ -27,7 +27,7 @@ void Camera::Update() {
     direction = glm::vec3(std::cos(polarAngle)*std::cos(azimutalAngle),
         std::cos(polarAngle)*std::sin(azimutalAngle), std::sin(polarAngle));
 
-    float multiplier = glm::length(position)*3.0F;
+    float multiplier = std::max(glm::length(position)*3.0F, 1.0F);
 
     if (events.keyboard.W) {position += direction*speed*time*multiplier;}
     if (events.keyboard.S) {position -= direction*speed*time*multiplier;}

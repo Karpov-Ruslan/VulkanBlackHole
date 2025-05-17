@@ -6,7 +6,8 @@ shaders_input_dir = os.path.normpath(os.path.dirname(os.path.abspath(sys.argv[0]
 shaders_output_dir = shaders_input_dir + r"\spv"
 
 shaders_list = {
-    "black_hole_ray_marching.comp",
+    "black_hole_ray_marching_rk2.comp",
+    "black_hole_ray_marching_rk4.comp",
     "black_hole_precomputed.comp",
     "black_hole_precompute_precomputed_texture.comp"
 }

@@ -1,3 +1,6 @@
+#ifndef BLACK_HOLE_COMMON_COMP
+#define BLACK_HOLE_COMMON_COMP
+
 #include "black_hole.in"
 
 // Black Hole params
@@ -136,7 +139,7 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
             break;
         }
 
-        uInfo = rk4(uInfo, h);
+        uInfo = rk(uInfo, h);
         phi += h;
 
         transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
@@ -167,3 +170,5 @@ void main() {
     vec3 pixelCameraDir = initializeStartGrid();
     imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(traceRayBlackHole(pixelCameraDir), 1.0F));
 }
+
+#endif // BLACK_HOLE_COMMON_COMP

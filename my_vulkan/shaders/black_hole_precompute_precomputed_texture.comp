@@ -10,6 +10,7 @@ const uint MAX_STEPS = 10000U;
 const float h = 0.003F;
 const float TAN_STOP_ITER = 1000.0F;
 
+#define RUNGE_KUTTE_4
 #include "black_hole_runge_kutte.glsl"
 
 // x in range [0.0F, 1.0F]
@@ -27,7 +28,7 @@ float RungeKutte(vec2 uInfo, float phi) {
             break;
         }
 
-        uInfo = rk4(uInfo, h);
+        uInfo = rk(uInfo, h);
         phi += h;
     }
 
