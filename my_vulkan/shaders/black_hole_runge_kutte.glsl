@@ -25,4 +25,8 @@ vec2 rk(vec2 uInfo, float h) {
     return uInfo + 0.5F*h*(k1 + k2);
 #endif // RUNGE_KUTTE_2
 
+#ifdef RUNGE_KUTTE_1
+    return uInfo + h*f(uInfo);
+#endif // RUNGE_KUTTE_1
+
 }
