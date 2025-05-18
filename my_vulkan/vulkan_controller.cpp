@@ -1,6 +1,7 @@
 #include "vulkan_controller.hpp"
 #include "utils/window.hpp"
 #include "my_vulkan/utils.hpp"
+#include "vulkan_functions.hpp"
 
 #include <algorithm>
 #include <format>
@@ -9,8 +10,14 @@
 
 namespace {
 
+constexpr char const *VK_LAYER_KHRONOS_VALIDATION_NAME = "VK_LAYER_KHRONOS_validation";
+
 constexpr char const *requiredDeviceExtensions[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
+constexpr char const *requiredInstanceLayers[] = {
+    VK_LAYER_KHRONOS_VALIDATION_NAME
 };
 
 }
@@ -21,6 +28,9 @@ VulkanController::VulkanController() {
     LoadVulkanGlobalFunctions();
     InitInstance();
     LoadVulkanInstanceFunctions(instance);
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+    InitDebugUtilsMessanger();
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
     InitSurface();
     InitPhysicalDevice();
     InitQueueFamilyIndex();
@@ -35,9 +45,12 @@ VulkanController::VulkanController() {
 
 void VulkanController::InitInstance() {
     std::vector<const char*> extensions = Window::GetInstance().GetVulkanSurfaceExtensions();
-#ifdef VULKAN_DEBUG
+#if defined(VULKAN_DEBUG_NAMES) || defined(VULKAN_DEBUG_VALIDATION_LAYERS)
     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+    extensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
+#endif // VULKAN_DEBUG_NAMES, VULKAN_DEBUG_VALIDATION_LAYERS
 
     VkApplicationInfo applicationInfo {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -60,12 +73,68 @@ void VulkanController::InitInstance() {
         .ppEnabledExtensionNames = extensions.data()
     };
 
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+    constexpr VkBool32 vkTrue = VK_TRUE;
+    constexpr VkBool32 vkFalse = VK_FALSE;
+    constexpr char const *messageSeverity[] = {"error"};
+
+    VkLayerSettingEXT layerSettings[] = {
+        {
+            .pLayerName = VK_LAYER_KHRONOS_VALIDATION_NAME,
+            .pSettingName = "validate_sync",
+            .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+            .valueCount = 1U,
+            .pValues = &vkTrue
+        },
+        {
+            .pLayerName = VK_LAYER_KHRONOS_VALIDATION_NAME,
+            .pSettingName = "validate_best_practices",
+            .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+            .valueCount = 1U,
+            .pValues = &vkTrue
+        },
+        {
+            .pLayerName = VK_LAYER_KHRONOS_VALIDATION_NAME,
+            .pSettingName = "report_flags",
+            .type = VK_LAYER_SETTING_TYPE_STRING_EXT,
+            .valueCount = std::size(messageSeverity),
+            .pValues = messageSeverity
+        }
+    };
+
+    VkLayerSettingsCreateInfoEXT layerSettingsCI {
+        .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+        .pNext = nullptr,
+        .settingCount = std::size(layerSettings),
+        .pSettings = layerSettings
+    };
+
+    instanceCI.pNext = &layerSettingsCI;
+    instanceCI.enabledLayerCount = std::size(requiredInstanceLayers);
+    instanceCI.ppEnabledLayerNames = requiredInstanceLayers;
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
+
     VK_CALL(vkCreateInstance(&instanceCI, nullptr, &instance));
 }
 
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+void VulkanController::InitDebugUtilsMessanger() {
+    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .pNext = nullptr,
+        .flags = 0U,
+        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = Utils::DebugUtils::DebugCallback,
+        .pUserData = nullptr
+    };
+
+    VK_CALL(vkCreateDebugUtilsMessengerEXT(instance, &debugUtilsMessengerCI, nullptr, &debugUtilsMessenger));
+}
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
+
 void VulkanController::InitSurface() {
-    VkWin32SurfaceCreateInfoKHR surfaceCI = Window::GetInstance().GetVulkanSurfaceCreateInfo();
-    VK_CALL(vkCreateWin32SurfaceKHR(instance, &surfaceCI, nullptr, &surface));
+    surface = Window::GetInstance().CreateVulkanSurface(instance);
 }
 
 void VulkanController::InitPhysicalDevice() {
@@ -265,29 +334,6 @@ void VulkanController::InitSwapchain() {
 
 
 void VulkanController::InitCommandBuffers() {
-    VkCommandPool& commandPool = commandBufferInfo.commandPool;
-
-    VkCommandPoolCreateInfo commandPoolCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
-        .queueFamilyIndex = queueFamilyIndex
-    };
-
-    VK_CALL(vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-    VkCommandBufferAllocateInfo commandBufferAllocateInfo {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .commandPool = commandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = FRAMES_IN_FLIGHT
-    };
-
-    auto& commandBuffers = commandBufferInfo.commandBuffers;
-
-    VK_CALL(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, commandBuffers.data()));
-
     constexpr VkFenceCreateInfo fenceCI {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .pNext = nullptr,
@@ -295,7 +341,30 @@ void VulkanController::InitCommandBuffers() {
     };
 
     for (uint32_t i = 0U; i < FRAMES_IN_FLIGHT; i++) {
-        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_COMMAND_BUFFER, commandBuffers[i], std::format("Command Buffer [{}]", i).c_str());
+        VkCommandPool& commandPool = commandBufferInfo.commandPools[i];
+
+        VkCommandPoolCreateInfo commandPoolCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+            .queueFamilyIndex = queueFamilyIndex
+        };
+
+        VK_CALL(vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool));
+
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .pNext = nullptr,
+            .commandPool = commandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1U
+        };
+
+        VkCommandBuffer &commandBuffer = commandBufferInfo.commandBuffers[i];
+
+        VK_CALL(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer));
+
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_COMMAND_BUFFER, commandBuffer, std::format("Command Buffer [{}]", i).c_str());
 
         VkFence& fence = commandBufferInfo.commandBufferFences[i];
         VK_CALL(vkCreateFence(device, &fenceCI, nullptr, &fence));
@@ -304,11 +373,12 @@ void VulkanController::InitCommandBuffers() {
 }
 
 void VulkanController::RecordCommandBuffer(VkImage swapchainImage, uint32_t fif) {
+    VkCommandPool commandPool = commandBufferInfo.commandPools[fif];
     VkCommandBuffer commandBuffer = commandBufferInfo.commandBuffers[fif];
 
-    VK_CALL(vkResetCommandBuffer(commandBuffer, 0U));
+    VK_CALL(vkResetCommandPool(device, commandPool, 0U));
 
-    VkCommandBufferBeginInfo const commandBufferBeginInfo {
+    constexpr VkCommandBufferBeginInfo commandBufferBeginInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
@@ -465,9 +535,8 @@ VulkanController::~VulkanController() {
 
     core.Destroy(device);
 
-    vkDestroyCommandPool(device, commandBufferInfo.commandPool, nullptr);
-
     for (uint32_t i = 0U; i < FRAMES_IN_FLIGHT; i++) {
+        vkDestroyCommandPool(device, commandBufferInfo.commandPools[i], nullptr);
         vkDestroyFence(device, commandBufferInfo.commandBufferFences[i], nullptr);
         vkDestroySemaphore(device, queueInfo.canPresent[i], nullptr);
         vkDestroySemaphore(device, queueInfo.canRender[i], nullptr);
@@ -477,6 +546,11 @@ VulkanController::~VulkanController() {
     vkDestroyDevice(device, nullptr);
 
     vkDestroySurfaceKHR(instance, surface, nullptr);
+
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+    vkDestroyDebugUtilsMessengerEXT(instance, debugUtilsMessenger, nullptr);
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
+
     vkDestroyInstance(instance, nullptr);
 }
 

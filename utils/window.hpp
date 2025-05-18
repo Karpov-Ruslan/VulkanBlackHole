@@ -2,9 +2,6 @@
 
 #include <vulkan/vulkan_core.h>
 
-#include <windows.h>
-#include <vulkan/vulkan_win32.h>
-
 #include <GLFW/glfw3.h>
 
 #include <vector>
@@ -45,7 +42,7 @@ public:
     std::vector<char const *> GetVulkanSurfaceExtensions();
 
     // Should be platform-independent
-    VkWin32SurfaceCreateInfoKHR GetVulkanSurfaceCreateInfo();
+    VkSurfaceKHR CreateVulkanSurface(VkInstance instance);
 
     VkExtent2D GetWindowSize();
 

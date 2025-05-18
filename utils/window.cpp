@@ -1,11 +1,10 @@
-#include "window.hpp"
-
-#define GLFW_EXPOSE_NATIVE_WIN32
-#define GLFW_NATIVE_INCLUDE_NONE
-#include <GLFW/glfw3native.h>
+#include "../my_vulkan/vulkan_functions.hpp"
 
 #include <stdexcept>
 #include <constants.hpp>
+
+#define GLFW_INCLUDE_VULKAN
+#include "window.hpp"
 
 namespace KRV {
 
@@ -41,20 +40,12 @@ Window::Window() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
-VkWin32SurfaceCreateInfoKHR Window::GetVulkanSurfaceCreateInfo() {
-    // It is WinAPI, so I am scared of using `nullptr` instead of `NULL`.
-    HINSTANCE hinstance = GetModuleHandle(NULL);
-    HWND hwnd = glfwGetWin32Window(window);
+VkSurfaceKHR Window::CreateVulkanSurface(VkInstance instance) {
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
 
-    VkWin32SurfaceCreateInfoKHR surfaceCI {
-        .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-        .pNext = nullptr,
-        .flags = 0U,
-        .hinstance = hinstance,
-        .hwnd = hwnd
-    };
+    VK_CALL(glfwCreateWindowSurface(instance, window, NULL, &surface));
 
-    return surfaceCI;
+    return surface;
 }
 
 VkExtent2D Window::GetWindowSize() {

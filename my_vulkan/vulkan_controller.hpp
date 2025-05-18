@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vulkan/vulkan_core.h>
-#include "vulkan_functions.hpp"
 #include "core/core.hpp"
 #include <vector>
 #include <array>
@@ -36,13 +35,16 @@ protected:
     };
 
     struct CommandBufferInfo {
-        VkCommandPool commandPool = VK_NULL_HANDLE;
+        std::array<VkCommandPool, FRAMES_IN_FLIGHT> commandPools;
         std::array<VkCommandBuffer, FRAMES_IN_FLIGHT> commandBuffers;
         std::array<VkFence, FRAMES_IN_FLIGHT> commandBufferFences;
         uint32_t fif = 0U;
     };
 
     void InitInstance();
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+    void InitDebugUtilsMessanger();
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
     void InitSurface();
     void InitPhysicalDevice();
     void InitQueueFamilyIndex();
@@ -55,6 +57,9 @@ protected:
     void DrawFrame();
 
     VkInstance instance = VK_NULL_HANDLE;
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+    VkDebugUtilsMessengerEXT debugUtilsMessenger = VK_NULL_HANDLE;
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;

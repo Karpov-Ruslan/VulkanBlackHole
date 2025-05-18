@@ -7,9 +7,6 @@ X(vkGetPhysicalDeviceMemoryProperties)
 X(vkGetPhysicalDeviceProperties)
 X(vkGetPhysicalDeviceQueueFamilyProperties)
 
-// VK_KHR_win32_surface
-X(vkCreateWin32SurfaceKHR)
-
 // VK_KHR_surface
 X(vkDestroySurfaceKHR)
 X(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
@@ -17,9 +14,13 @@ X(vkGetPhysicalDeviceSurfaceFormatsKHR)
 X(vkGetPhysicalDeviceSurfacePresentModesKHR)
 X(vkGetPhysicalDeviceSurfaceSupportKHR)
 
-#ifdef VULKAN_DEBUG
+#if defined(VULKAN_DEBUG_NAMES) || defined(VULKAN_DEBUG_VALIDATION_LAYERS)
 // Actually, it is instance function, not device ;)
 X(vkCmdBeginDebugUtilsLabelEXT)
 X(vkCmdEndDebugUtilsLabelEXT)
 X(vkSetDebugUtilsObjectNameEXT)
+#ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+X(vkCreateDebugUtilsMessengerEXT)
+X(vkDestroyDebugUtilsMessengerEXT)
+#endif // VULKAN_DEBUG_VALIDATION_LAYERS
 #endif

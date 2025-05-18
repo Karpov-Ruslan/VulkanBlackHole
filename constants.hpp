@@ -2,13 +2,15 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <format>
 #include <vulkan/vulkan_core.h>
 
 #define VK_CALL(call) \
     {\
-        auto ret = call;\
+        VkResult ret = call;\
         if (ret != VK_SUCCESS) {\
-            throw std::runtime_error("Vulkan is dead");\
+            std::string errorString = std::format("[{}::{}] Vulkan Error Code: {}", __FILE__, __LINE__, static_cast<std::underlying_type_t<VkResult>>(ret));\
+            throw std::runtime_error(errorString);\
         }\
     }
 
