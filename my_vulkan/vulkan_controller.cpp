@@ -102,9 +102,19 @@ void VulkanController::InitInstance() {
         }
     };
 
+    debugUtilsMessengerCI = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .pNext = nullptr,
+        .flags = 0U,
+        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = Utils::DebugUtils::DebugCallback,
+        .pUserData = nullptr
+    };
+
     VkLayerSettingsCreateInfoEXT layerSettingsCI {
         .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-        .pNext = nullptr,
+        .pNext = &debugUtilsMessengerCI,
         .settingCount = std::size(layerSettings),
         .pSettings = layerSettings
     };
@@ -119,16 +129,6 @@ void VulkanController::InitInstance() {
 
 #ifdef VULKAN_DEBUG_VALIDATION_LAYERS
 void VulkanController::InitDebugUtilsMessanger() {
-    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI {
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .pNext = nullptr,
-        .flags = 0U,
-        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = Utils::DebugUtils::DebugCallback,
-        .pUserData = nullptr
-    };
-
     VK_CALL(vkCreateDebugUtilsMessengerEXT(instance, &debugUtilsMessengerCI, nullptr, &debugUtilsMessenger));
 }
 #endif // VULKAN_DEBUG_VALIDATION_LAYERS
@@ -227,23 +227,7 @@ void VulkanController::InitDevice() {
 }
 
 void VulkanController::InitQueue() {
-    vkGetDeviceQueue(device, queueFamilyIndex, 0U, &queueInfo.queue);
-
-    constexpr VkSemaphoreCreateInfo semaphoreCI {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0U
-    };
-
-    for (uint32_t i = 0U; i < FRAMES_IN_FLIGHT; i++) {
-        VkSemaphore& canRender = queueInfo.canRender[i];
-        VK_CALL(vkCreateSemaphore(device, &semaphoreCI, nullptr, &canRender));
-        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_SEMAPHORE, canRender, std::format("Queue CanRender Semaphore [{}]", i).c_str());
-
-        VkSemaphore& canPresent = queueInfo.canPresent[i];
-        VK_CALL(vkCreateSemaphore(device, &semaphoreCI, nullptr, &canPresent));
-        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_SEMAPHORE, canPresent, std::format("Queue CanPresent Semaphore [{}]", i).c_str());
-    }
+    vkGetDeviceQueue(device, queueFamilyIndex, 0U, &queue);
 }
 
 void VulkanController::InitSwapchain() {
@@ -330,6 +314,19 @@ void VulkanController::InitSwapchain() {
     VK_CALL(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr));
     swapchainImages.resize(swapchainImageCount);
     VK_CALL(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data()));
+
+    swapchainInfo.canPresent.resize(swapchainImageCount);
+    constexpr VkSemaphoreCreateInfo semaphoreCI {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0U
+    };
+
+    for (uint32_t i = 0U; i < swapchainImageCount; i++) {
+        VkSemaphore &canPresent = swapchainInfo.canPresent[i];
+        VK_CALL(vkCreateSemaphore(device, &semaphoreCI, nullptr, &canPresent));
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_SEMAPHORE, canPresent, std::format("Queue CanPresent Semaphore [{}]", i).c_str());
+    }
 }
 
 
@@ -369,6 +366,16 @@ void VulkanController::InitCommandBuffers() {
         VkFence& fence = commandBufferInfo.commandBufferFences[i];
         VK_CALL(vkCreateFence(device, &fenceCI, nullptr, &fence));
         Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_FENCE, fence, std::format("Command Buffer Fence [{}]", i).c_str());
+
+        constexpr VkSemaphoreCreateInfo semaphoreCI {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0U
+        };
+
+        VkSemaphore& canRender = commandBufferInfo.canRender[i];
+        VK_CALL(vkCreateSemaphore(device, &semaphoreCI, nullptr, &canRender));
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_SEMAPHORE, canRender, std::format("Queue CanRender Semaphore [{}]", i).c_str());
     }
 }
 
@@ -492,7 +499,7 @@ void VulkanController::DrawFrame() {
     VK_CALL(vkResetFences(device, 1, &commandBufferInfo.commandBufferFences[fif]));
 
     uint32_t imageIndex = 0U;
-    VK_CALL(vkAcquireNextImageKHR(device, swapchainInfo.swapchain, UINT64_MAX, queueInfo.canRender[fif], VK_NULL_HANDLE, &imageIndex));
+    VK_CALL(vkAcquireNextImageKHR(device, swapchainInfo.swapchain, UINT64_MAX, commandBufferInfo.canRender[fif], VK_NULL_HANDLE, &imageIndex));
 
     RecordCommandBuffer(swapchainInfo.images[imageIndex], fif);
 
@@ -502,28 +509,28 @@ void VulkanController::DrawFrame() {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .pNext = nullptr,
         .waitSemaphoreCount = 1U,
-        .pWaitSemaphores = &queueInfo.canRender[fif],
+        .pWaitSemaphores = &commandBufferInfo.canRender[fif],
         .pWaitDstStageMask = &waitDstStageMask,
         .commandBufferCount = 1U,
         .pCommandBuffers = &commandBufferInfo.commandBuffers[fif],
         .signalSemaphoreCount = 1U,
-        .pSignalSemaphores = &queueInfo.canPresent[fif]
+        .pSignalSemaphores = &swapchainInfo.canPresent[imageIndex]
     };
 
-    VK_CALL(vkQueueSubmit(queueInfo.queue, 1U, &submitInfo, commandBufferInfo.commandBufferFences[fif]));
+    VK_CALL(vkQueueSubmit(queue, 1U, &submitInfo, commandBufferInfo.commandBufferFences[fif]));
 
     VkPresentInfoKHR presentInfo {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .pNext = nullptr,
         .waitSemaphoreCount = 1U,
-        .pWaitSemaphores = &queueInfo.canPresent[fif],
+        .pWaitSemaphores = &swapchainInfo.canPresent[imageIndex],
         .swapchainCount = 1U,
         .pSwapchains = &swapchainInfo.swapchain,
         .pImageIndices = &imageIndex,
         .pResults = nullptr
     };
 
-    VK_CALL(vkQueuePresentKHR(queueInfo.queue, &presentInfo));
+    VK_CALL(vkQueuePresentKHR(queue, &presentInfo));
 
     fif = ++fif % FRAMES_IN_FLIGHT;
 }
@@ -538,8 +545,11 @@ VulkanController::~VulkanController() {
     for (uint32_t i = 0U; i < FRAMES_IN_FLIGHT; i++) {
         vkDestroyCommandPool(device, commandBufferInfo.commandPools[i], nullptr);
         vkDestroyFence(device, commandBufferInfo.commandBufferFences[i], nullptr);
-        vkDestroySemaphore(device, queueInfo.canPresent[i], nullptr);
-        vkDestroySemaphore(device, queueInfo.canRender[i], nullptr);
+        vkDestroySemaphore(device, commandBufferInfo.canRender[i], nullptr);
+    }
+
+    for (VkSemaphore &canPresent : swapchainInfo.canPresent) {
+        vkDestroySemaphore(device, canPresent, nullptr);
     }
 
     vkDestroySwapchainKHR(device, swapchainInfo.swapchain, nullptr);

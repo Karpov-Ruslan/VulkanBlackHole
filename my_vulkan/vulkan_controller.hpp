@@ -21,15 +21,10 @@ public:
 protected:
     static constexpr uint32_t FRAMES_IN_FLIGHT = 2U;
 
-    struct QueueInfo {
-        VkQueue queue = VK_NULL_HANDLE;
-        std::array<VkSemaphore, FRAMES_IN_FLIGHT> canRender;
-        std::array<VkSemaphore, FRAMES_IN_FLIGHT> canPresent;
-    };
-
     struct SwapchainInfo {
         VkSwapchainKHR swapchain = VK_NULL_HANDLE;
         std::vector<VkImage> images = {};
+        std::vector<VkSemaphore> canPresent = {};
         VkFormat format = {};
         VkExtent2D extent = {};
     };
@@ -38,6 +33,7 @@ protected:
         std::array<VkCommandPool, FRAMES_IN_FLIGHT> commandPools;
         std::array<VkCommandBuffer, FRAMES_IN_FLIGHT> commandBuffers;
         std::array<VkFence, FRAMES_IN_FLIGHT> commandBufferFences;
+        std::array<VkSemaphore, FRAMES_IN_FLIGHT> canRender;
         uint32_t fif = 0U;
     };
 
@@ -58,13 +54,14 @@ protected:
 
     VkInstance instance = VK_NULL_HANDLE;
 #ifdef VULKAN_DEBUG_VALIDATION_LAYERS
+    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI;
     VkDebugUtilsMessengerEXT debugUtilsMessenger = VK_NULL_HANDLE;
 #endif // VULKAN_DEBUG_VALIDATION_LAYERS
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
     uint32_t queueFamilyIndex = 0U;
-    QueueInfo queueInfo = {};
+    VkQueue queue = VK_NULL_HANDLE;
     SwapchainInfo swapchainInfo = {};
     CommandBufferInfo commandBufferInfo = {};
 
