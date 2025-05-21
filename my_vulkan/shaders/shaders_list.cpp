@@ -22,8 +22,12 @@ const std::unordered_map<SHADER_LIST_ID, std::vector<uint32_t>> shaderList = {
         #include <black_hole_precomputed.comp.spv>
     },
     {
-        SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_PRECOMPUTED_TEXTURE_COMP,
-        #include <black_hole_precompute_precomputed_texture.comp.spv>
+        SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_PHI_TEXTURE_COMP,
+        #include <black_hole_precompute_phi_texture.comp.spv>
+    },
+    {
+        SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_ACCR_DISK_DATA_TEXTURE_COMP,
+        #include <black_hole_precompute_accr_disk_data_texture.comp.spv>
     }
 };
 

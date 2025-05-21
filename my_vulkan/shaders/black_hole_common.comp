@@ -6,8 +6,8 @@
 // Black Hole params
 // Black hole center is (0.0, 0.0, 0.0)
 const float INV_BLACK_HOLE_RADIUS = 1.0F/BLACK_HOLE_RADIUS;
-
-#ifdef RAY_MARCHING
+const float inv_pi = 0.318309886183790671538F;
+const float pi = 3.14159265358979323846F;
 
 const float INNER_RADIUS_OF_ACCRETION_DISK = 3.0F*BLACK_HOLE_RADIUS;
 const float OUTER_RADIUS_OF_ACCRETION_DISK = 6.0F*BLACK_HOLE_RADIUS;
@@ -15,6 +15,8 @@ const vec3 ROTATION_AXIS_OF_ACCRETION_DISK = normalize(vec3(0.0F, 0.0F, 4.0F));
 const vec3 COLOR_OF_ACCRETION_DISK = vec3(1.0F, 0.5F, 0.0F) * BLACK_HOLE_RADIUS * 300.0F;
 const float THICKNESS_OF_ACCRETION_DISK = 0.01F;
 const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK;
+
+#ifdef RAY_MARCHING
 
 // Ray Marching params
 const uint MAX_STEPS = 10000U;
@@ -33,7 +35,8 @@ layout(set = 0, binding = BINDING_CUBE_MAP) uniform samplerCube spaceCubeMap;
 
 #ifdef PRECOMPUTED
 
-layout(set = 0, binding = BINDING_PRECOMPUTED_TEXTURE) uniform sampler2D precomputedTexture;
+layout(set = 0, binding = BINDING_PRECOMPUTED_PHI_TEXTURE) uniform sampler2D precomputedPhiTexture;
+layout(set = 0, binding = BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE) uniform sampler3D precomputedAccrDiskDataTexture;
 
 #endif // PRECOMPUTED
 
@@ -70,27 +73,6 @@ void transformUInfoIntoDirectionAndPosition(vec2 uInfo, float phi, vec3 rotation
     direction = normalize(cross(normRotationAxis, normPosition) - normPosition*uInfo.y*radius);
 }
 
-#ifdef PRECOMPUTED
-
-float SampleAngle(vec2 uInfo) {
-    if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
-        return PRECOMPUTED_TEXTURE_SPECIAL_VALUE;
-    }
-
-    const float inv_pi = 0.318309886183790671538F;
-    vec2 rawUV = vec2(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F));
-
-    const vec2 precomputedTextureSize = vec2(PRECOMPUTED_TEXTURE_WIDTH, PRECOMPUTED_TEXTURE_HEIGHT);
-    const vec2 multiplier = (precomputedTextureSize - vec2(1.0F))/precomputedTextureSize;
-    const vec2 addition = vec2(0.5F)/precomputedTextureSize;
-
-    return texture(precomputedTexture, fma(rawUV, multiplier, addition)).r;
-}
-
-#endif // PRECOMPUTED
-
-#ifdef RAY_MARCHING
-
 float rand(float n) {
     return fract(sin(n) * 43758.5453123F);
 }
@@ -100,6 +82,8 @@ float noise(float p) {
     float fc = fract(p);
 	return mix(rand(fl), rand(fl + 1.0F), fc);
 }
+
+#ifdef RAY_MARCHING
 
 float accretionDiskDensity(vec3 position) {
     float a = -dot(position, ROTATION_AXIS_OF_ACCRETION_DISK);
@@ -112,6 +96,47 @@ float accretionDiskDensity(vec3 position) {
 #include "black_hole_runge_kutte.glsl"
 
 #endif // RAY_MARCHING
+
+#ifdef PRECOMPUTED
+
+float accretionDiskDensity(float r) {
+    if (r < INNER_RADIUS_OF_ACCRETION_DISK || r > OUTER_RADIUS_OF_ACCRETION_DISK) {return 0.0F;} // Save performance
+    return noise(r*400.0F);
+}
+
+vec2 SampleAngle(vec2 uInfo) {
+    if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
+        return vec2(0.0F, -1.0F);
+    }
+
+    vec2 rawUV = vec2(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F));
+
+    const vec2 precomputedTextureSize = vec2(PRECOMPUTED_PHI_TEXTURE_WIDTH, PRECOMPUTED_PHI_TEXTURE_HEIGHT);
+    const vec2 multiplier = (precomputedTextureSize - vec2(1.0F))/precomputedTextureSize;
+    const vec2 addition = vec2(0.5F)/precomputedTextureSize;
+
+    return texture(precomputedPhiTexture, fma(rawUV, multiplier, addition)).rg;
+}
+
+vec3 SampleAccrDisk(vec2 uInfo, float phi) {
+    if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
+        return vec3(0.0F);
+    }
+
+    vec3 rawUVW = vec3(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F), phi/pi);
+
+    const vec3 precomputedTextureSize = vec3(PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_WIDTH,
+        PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_HEIGHT, PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_DEPTH);
+
+    const vec3 multiplier = (precomputedTextureSize - vec3(1.0F))/precomputedTextureSize;
+    const vec3 addition = vec3(0.5F)/precomputedTextureSize;
+
+    vec2 radii = texture(precomputedAccrDiskDataTexture, fma(rawUVW, multiplier, addition)).rg;
+
+    return (accretionDiskDensity(radii[0]) + accretionDiskDensity(radii[1]))*COLOR_OF_ACCRETION_DISK*0.1F;
+}
+
+#endif // PRECOMPUTED
 
 vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     // u = 1/r; r - radius
@@ -153,14 +178,29 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
 
 #elif defined(PRECOMPUTED)
 
-    phi = SampleAngle(uInfo);
-
-    if (isnan(phi) || phi > 9.0F) {
-        return vec3(0.0F);
+    vec3 intersectionVec = cross(rotationAxis, ROTATION_AXIS_OF_ACCRETION_DISK);
+    float dotProd = dot(cameraPos, intersectionVec);
+    if (dotProd < 0.0F) {
+        intersectionVec = -intersectionVec;
+        dotProd = -dotProd;
     }
 
-    transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
-    return texture(spaceCubeMap, position).rgb;
+    phi = acos(dotProd/(length(cameraPos)*length(intersectionVec)));
+
+    if (dot(cross(rotationAxis, cameraPos), intersectionVec) > 0.0F) {
+        phi = pi - phi;
+    }
+
+    outputColor = SampleAccrDisk(uInfo, phi);
+
+    vec2 phiAndFlags = SampleAngle(uInfo);
+
+    if (phiAndFlags.y < 0.0F) {
+        return outputColor;
+    }
+
+    transformUInfoIntoDirectionAndPosition(uInfo, phiAndFlags.x, rotationAxis, position, direction);
+    return outputColor + texture(spaceCubeMap, position).rgb;
 
 #endif // RAY_MARCHING, PRECOMPUTED
 

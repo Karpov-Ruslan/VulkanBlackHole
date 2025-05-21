@@ -26,7 +26,7 @@ void LoadVulkanGlobalFunctions() {
 
 #elif defined(__linux__)
 
-    void *handle = dlopen("libvulkan.so", RTLD_LAZY);
+    void *handle = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
         throw std::runtime_error("Vulkan Library didn't loaded");
     }

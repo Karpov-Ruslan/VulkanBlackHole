@@ -24,11 +24,15 @@ private:
     void InitDescriptorSet(VkDevice device);
     void InitPipeline(VkDevice device);
 
-    Image *pPrecomputedTexture = nullptr;
+    Image *pPrecomputedPhiTexture = nullptr;
+    Image *pPrecomputedAccrDiskDataTexture = nullptr;
 
     bool isFirstRecording = true;
 
-    VkPipeline pipeline = VK_NULL_HANDLE;
+    VkPipeline precomputePhiPipeline = VK_NULL_HANDLE;
+    VkPipeline precomputeAccrDiskDataPipeline = VK_NULL_HANDLE;
+
+    // Common Vulkan object for pipelines.
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;

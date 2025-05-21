@@ -45,7 +45,8 @@ void BlackHolePass::AllocateResources(VkDevice device, Utils::GPUAllocator& gpuA
     AllocateCubeMap(device, gpuAllocator);
 
 #ifdef BLACK_HOLE_PRECOMPUTED
-    pPrecomputedTexture = &gpuAllocator.GetImage(PRECOMPUTED_TEXTURE_NAME);
+    pPrecomputedPhiTexture = &gpuAllocator.GetImage(PRECOMPUTED_PHI_TEXTURE_NAME);
+    pPrecomputedAccrDiskDataTexture = &gpuAllocator.GetImage(PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_NAME);
 #endif // BLACK_HOLE_PRECOMPUTED
 }
 
@@ -127,7 +128,7 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
 #ifndef BLACK_HOLE_PRECOMPUTED
             .descriptorCount = 1U
 #else
-            .descriptorCount = 2U
+            .descriptorCount = 3U
 #endif // BLACK_HOLE_PRECOMPUTED
         },
         {
@@ -166,7 +167,14 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
         }
 #ifdef BLACK_HOLE_PRECOMPUTED
         ,{
-            .binding = BINDING_PRECOMPUTED_TEXTURE,
+            .binding = BINDING_PRECOMPUTED_PHI_TEXTURE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1U,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = &sampler
+        },
+        {
+            .binding = BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1U,
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -213,10 +221,16 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }
 #ifdef BLACK_HOLE_PRECOMPUTED
-        // Precomputed Texture
+        // Precomputed Phi Texture
         ,{
             .sampler = VK_NULL_HANDLE,
-            .imageView = pPrecomputedTexture->imageView,
+            .imageView = pPrecomputedPhiTexture->imageView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        },
+        // Precomputed Data of Accretion Disk
+        {
+            .sampler = VK_NULL_HANDLE,
+            .imageView = pPrecomputedAccrDiskDataTexture->imageView,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }
 #endif // BLACK_HOLE_PRECOMPUTED
@@ -250,15 +264,29 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .pTexelBufferView = nullptr
         }
 #ifdef BLACK_HOLE_PRECOMPUTED
+        // Precomputed Phi Texture
         ,{
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .pNext = nullptr,
             .dstSet = descriptorSet,
-            .dstBinding = BINDING_PRECOMPUTED_TEXTURE,
+            .dstBinding = BINDING_PRECOMPUTED_PHI_TEXTURE,
             .dstArrayElement = 0U,
             .descriptorCount = 1U,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .pImageInfo = &descriptorImageInfo[2],
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
+        },
+        // Precomputed Data of Accretion Disk
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = descriptorSet,
+            .dstBinding = BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE,
+            .dstArrayElement = 0U,
+            .descriptorCount = 1U,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &descriptorImageInfo[3],
             .pBufferInfo = nullptr,
             .pTexelBufferView = nullptr
         }

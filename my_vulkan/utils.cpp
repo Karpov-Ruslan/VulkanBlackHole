@@ -7,7 +7,7 @@ namespace KRV::Utils {
 
 DebugUtils::LabelGuard::LabelGuard(VkCommandBuffer commandBuffer, char const *name,
     float r, float g, float b) : commandBuffer(commandBuffer) {
-#ifdef VULKAN_DEBUG_NAMES
+#if defined(VULKAN_DEBUG_NAMES) || defined (VULKAN_DEBUG_VALIDATION_LAYERS)
     VkDebugUtilsLabelEXT label {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
         .pNext = nullptr,
@@ -16,19 +16,19 @@ DebugUtils::LabelGuard::LabelGuard(VkCommandBuffer commandBuffer, char const *na
     };
 
     vkCmdBeginDebugUtilsLabelEXT(commandBuffer, &label);
-#endif // VULKAN_DEBUG_NAMES
+#endif // VULKAN_DEBUG_NAMES, VULKAN_DEBUG_VALIDATION_LAYERS
 }
 
 DebugUtils::LabelGuard::~LabelGuard() {
-#ifdef VULKAN_DEBUG_NAMES
+#if defined(VULKAN_DEBUG_NAMES) || defined (VULKAN_DEBUG_VALIDATION_LAYERS)
     vkCmdEndDebugUtilsLabelEXT(commandBuffer);
-#endif // VULKAN_DEBUG_NAMES
+#endif // VULKAN_DEBUG_NAMES, VULKAN_DEBUG_VALIDATION_LAYERS
 }
 
 void DebugUtils::NameImpl(VkDevice device, VkDebugUtilsObjectNameInfoEXT const &objectNameInfo) {
-#ifdef VULKAN_DEBUG_NAMES
+#if defined(VULKAN_DEBUG_NAMES) || defined (VULKAN_DEBUG_VALIDATION_LAYERS)
     VK_CALL(vkSetDebugUtilsObjectNameEXT(device, &objectNameInfo));
-#endif // VULKAN_DEBUG_NAMES
+#endif // VULKAN_DEBUG_NAMES, VULKAN_DEBUG_VALIDATION_LAYERS
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtils::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,

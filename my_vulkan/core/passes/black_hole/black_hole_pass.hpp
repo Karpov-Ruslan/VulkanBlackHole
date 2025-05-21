@@ -39,7 +39,8 @@ private:
 
 #ifdef BLACK_HOLE_PRECOMPUTED
     // Just take it from precompute pass, there is no allocation of this resource.
-    Image *pPrecomputedTexture = nullptr;
+    Image *pPrecomputedPhiTexture = nullptr;
+    Image *pPrecomputedAccrDiskDataTexture = nullptr;
 #endif // BLACK_HOLE_PRECOMPUTED
 
     VkSampler sampler = VK_NULL_HANDLE;
@@ -49,7 +50,7 @@ private:
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 
-    Camera camera = Camera(glm::vec3(-0.5F, 0.0F, 0.0F), glm::vec3(1.0F, 0.0F, 0.0F), 0.1F, 1.0F, 1.57F);
+    Camera camera = Camera(glm::vec3(-0.2F, 0.0F, 0.05F), glm::vec3(1.0F, 0.0F, 0.0F), 0.1F, 1.0F, 1.57F);
 };
 
 }

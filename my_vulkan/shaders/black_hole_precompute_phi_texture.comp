@@ -1,0 +1,45 @@
+#version 460
+
+#include "black_hole.in"
+
+layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 1U) in;
+
+layout(set = 0, binding = BINDING_PRECOMPUTED_PHI_TEXTURE, rg32f) uniform restrict writeonly image2D precomputedPhiTexture;
+
+const uint MAX_STEPS = 25000U;
+const float h = 0.003F;
+const float TAN_STOP_ITER = 1000.0F;
+const float pi = 3.14159265358979323846F;
+
+#define RUNGE_KUTTE_4
+#include "black_hole_runge_kutte.glsl"
+
+// x in range [0.0F, 1.0F]
+float AvoidOverflow(float x) {
+    return fma(x, 0.99999F, 0.000005F);
+}
+
+vec2 ComputePhi() {
+    float phi = 0.0F;
+    float u = AvoidOverflow(float(gl_GlobalInvocationID.x)/float(PRECOMPUTED_PHI_TEXTURE_WIDTH - 1U))/BLACK_HOLE_RADIUS;
+    vec2 uInfo = vec2(u, -tan((AvoidOverflow(float(gl_GlobalInvocationID.y)/float(PRECOMPUTED_PHI_TEXTURE_HEIGHT - 1U)) - 0.5F)*pi) * u);
+
+    for (uint i = 0U; i < MAX_STEPS; i++) {
+        if (uInfo.x > 1.0F/BLACK_HOLE_RADIUS) {
+            return vec2(phi, -1.0F);
+        }
+
+        if (uInfo.y < -TAN_STOP_ITER*uInfo.x) {
+            break;
+        }
+
+        uInfo = rk(uInfo, h);
+        phi += h;
+    }
+
+    return vec2(phi, 1.0F);
+}
+
+void main() {
+    imageStore(precomputedPhiTexture, ivec2(gl_GlobalInvocationID.xy), vec4(ComputePhi(), vec2(0.0F)));
+}

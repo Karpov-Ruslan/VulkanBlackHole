@@ -10,18 +10,33 @@
 namespace KRV {
 
 void BlackHolePrecomputePass::AllocateResources(VkDevice device, Utils::GPUAllocator& gpuAllocator) {
-    Utils::CreateImageInfo precomputedTextureCI {
-        .format = VK_FORMAT_R32_SFLOAT,
+    Utils::CreateImageInfo precomputedPhiTextureCI {
+        .format = VK_FORMAT_R32G32_SFLOAT,
         .extent {
-            .width = PRECOMPUTED_TEXTURE_WIDTH,
-            .height = PRECOMPUTED_TEXTURE_HEIGHT,
+            .width = PRECOMPUTED_PHI_TEXTURE_WIDTH,
+            .height = PRECOMPUTED_PHI_TEXTURE_HEIGHT,
             .depth = 1U
         },
         .usage = (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT),
-        .name = PRECOMPUTED_TEXTURE_NAME
+        .name = PRECOMPUTED_PHI_TEXTURE_NAME
     };
 
-    pPrecomputedTexture = &gpuAllocator.AddImage(device, precomputedTextureCI);
+    pPrecomputedPhiTexture = &gpuAllocator.AddImage(device, precomputedPhiTextureCI);
+
+    Utils::CreateImageInfo precomputedAccrDiskDataTextureCI {
+        .type = VK_IMAGE_TYPE_3D,
+        .viewType = VK_IMAGE_VIEW_TYPE_3D,
+        .format = VK_FORMAT_R32G32_SFLOAT,
+        .extent {
+            .width = PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_WIDTH,
+            .height = PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_HEIGHT,
+            .depth = PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_DEPTH
+        },
+        .usage = (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT),
+        .name = PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_NAME
+    };
+
+    pPrecomputedAccrDiskDataTexture = &gpuAllocator.AddImage(device, precomputedAccrDiskDataTextureCI);
 }
 
 void BlackHolePrecomputePass::Init(VkDevice device) {
@@ -30,7 +45,8 @@ void BlackHolePrecomputePass::Init(VkDevice device) {
 }
 
 void BlackHolePrecomputePass::Destroy(VkDevice device) {
-    vkDestroyPipeline(device, pipeline, nullptr);
+    vkDestroyPipeline(device, precomputePhiPipeline, nullptr);
+    vkDestroyPipeline(device, precomputeAccrDiskDataPipeline, nullptr);
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
@@ -43,14 +59,23 @@ void BlackHolePrecomputePass::RecordCommandBuffer(VkDevice device, VkCommandBuff
 
     Utils::DebugUtils::LabelGuard labelGuard(commandBuffer, "BlackHolePrecomputePass", 0.0F, 0.5F, 0.0F);
 
-    Utils::ImagePipelineBarrier(commandBuffer, *pPrecomputedTexture,
+    Utils::ImagePipelineBarrier(commandBuffer, *pPrecomputedPhiTexture,
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+    Utils::ImagePipelineBarrier(commandBuffer, *pPrecomputedAccrDiskDataTexture,
         VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, precomputePhiPipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0U, 1U, &descriptorSet, 0U, nullptr);
-    vkCmdDispatch(commandBuffer, PRECOMPUTED_TEXTURE_WIDTH/LOCAL_SIZE_X, PRECOMPUTED_TEXTURE_HEIGHT/LOCAL_SIZE_Y, 1U);
+    vkCmdDispatch(commandBuffer, PRECOMPUTED_PHI_TEXTURE_WIDTH/LOCAL_SIZE_X, PRECOMPUTED_PHI_TEXTURE_HEIGHT/LOCAL_SIZE_Y, 1U);
 
-    Utils::ImagePipelineBarrier(commandBuffer, *pPrecomputedTexture,
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, precomputeAccrDiskDataPipeline);
+    // There is no need to use `vkCmdBindDescriptorSets` because pipelineLayout is the same
+    vkCmdDispatch(commandBuffer, PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_WIDTH/LOCAL_SIZE_X,
+        PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_HEIGHT/LOCAL_SIZE_Y, PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_DEPTH);
+
+    Utils::ImagePipelineBarrier(commandBuffer, *pPrecomputedPhiTexture,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+    Utils::ImagePipelineBarrier(commandBuffer, *pPrecomputedAccrDiskDataTexture,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
     isFirstRecording = false;
@@ -60,7 +85,7 @@ void BlackHolePrecomputePass::InitDescriptorSet(VkDevice device) {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .descriptorCount = 1U
+            .descriptorCount = 2U
         }
     };
 
@@ -79,7 +104,14 @@ void BlackHolePrecomputePass::InitDescriptorSet(VkDevice device) {
 
     VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[] = {
         {
-            .binding = BINDING_PRECOMPUTED_TEXTURE,
+            .binding = BINDING_PRECOMPUTED_PHI_TEXTURE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1U,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr
+        },
+        {
+            .binding = BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             .descriptorCount = 1U,
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -111,26 +143,47 @@ void BlackHolePrecomputePass::InitDescriptorSet(VkDevice device) {
 
     Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_DESCRIPTOR_SET, descriptorSet, "BlackHolePrecomputePass::DescriptorSet");
 
-    VkDescriptorImageInfo descriptorImageInfo = {
-        .sampler = VK_NULL_HANDLE,
-        .imageView = pPrecomputedTexture->imageView,
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL
+    VkDescriptorImageInfo descriptorImageInfos[] = {
+        {
+            .sampler = VK_NULL_HANDLE,
+            .imageView = pPrecomputedPhiTexture->imageView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL
+        },
+        {
+            .sampler = VK_NULL_HANDLE,
+            .imageView = pPrecomputedAccrDiskDataTexture->imageView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL
+        },
     };
 
-    VkWriteDescriptorSet writeDescriptor = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = nullptr,
-        .dstSet = descriptorSet,
-        .dstBinding = BINDING_PRECOMPUTED_TEXTURE,
-        .dstArrayElement = 0U,
-        .descriptorCount = 1U,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = &descriptorImageInfo,
-        .pBufferInfo = nullptr,
-        .pTexelBufferView = nullptr
+    VkWriteDescriptorSet writeDescriptors[] = {
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = descriptorSet,
+            .dstBinding = BINDING_PRECOMPUTED_PHI_TEXTURE,
+            .dstArrayElement = 0U,
+            .descriptorCount = 1U,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .pImageInfo = &descriptorImageInfos[0],
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = descriptorSet,
+            .dstBinding = BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE,
+            .dstArrayElement = 0U,
+            .descriptorCount = 1U,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .pImageInfo = &descriptorImageInfos[1],
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
+        }
     };
 
-    vkUpdateDescriptorSets(device, 1U, &writeDescriptor, 0U, nullptr);
+    vkUpdateDescriptorSets(device, std::size(writeDescriptors), writeDescriptors, 0U, nullptr);
 }
 
 void BlackHolePrecomputePass::InitPipeline(VkDevice device) {
@@ -148,33 +201,41 @@ void BlackHolePrecomputePass::InitPipeline(VkDevice device) {
 
     Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE_LAYOUT, pipelineLayout, "BlackHolePrecomputePass::PipelineLayout");
 
-
-    Utils::ShaderModule blackHolePrecomputeComp = Utils::ShaderModule(device,
-        Utils::SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_PRECOMPUTED_TEXTURE_COMP);
-
-    VkPipelineShaderStageCreateInfo stageCI {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0U,
-        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-        .module = blackHolePrecomputeComp,
-        .pName = "main",
-        .pSpecializationInfo = nullptr
-    };
+    Utils::ShaderModule blackHolePrecomputePhiComp = Utils::ShaderModule(device,
+        Utils::SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_PHI_TEXTURE_COMP);
 
     VkComputePipelineCreateInfo pipelineCI {
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0U,
-        .stage = stageCI,
+        .stage = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0U,
+            .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+            .module = blackHolePrecomputePhiComp,
+            .pName = "main",
+            .pSpecializationInfo = nullptr
+        },
         .layout = pipelineLayout,
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0U
     };
 
-    VK_CALL(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1U, &pipelineCI, nullptr, &pipeline));
+    VK_CALL(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1U, &pipelineCI, nullptr, &precomputePhiPipeline));
 
-    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE, pipeline, "BlackHolePrecomputePass::Pipeline");
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE, precomputePhiPipeline,
+        "BlackHolePrecomputePass::PrecomputePhiPipeline");
+
+    Utils::ShaderModule blackHolePrecomputeAccrDiskDataComp = Utils::ShaderModule(device,
+        Utils::SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_ACCR_DISK_DATA_TEXTURE_COMP);
+
+    pipelineCI.stage.module = blackHolePrecomputeAccrDiskDataComp;
+
+    VK_CALL(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1U, &pipelineCI, nullptr, &precomputeAccrDiskDataPipeline));
+
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_PIPELINE, precomputePhiPipeline,
+        "BlackHolePrecomputePass::PrecomputeAccrDiskDataPipeline");
 }
 
 

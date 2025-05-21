@@ -23,4 +23,4 @@ X(vkSetDebugUtilsObjectNameEXT)
 X(vkCreateDebugUtilsMessengerEXT)
 X(vkDestroyDebugUtilsMessengerEXT)
 #endif // VULKAN_DEBUG_VALIDATION_LAYERS
-#endif
+#endif // VULKAN_DEBUG_NAMES, VULKAN_DEBUG_VALIDATION_LAYERS
