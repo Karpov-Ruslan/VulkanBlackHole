@@ -1,0 +1,5 @@
+#version 460
+#define RAY_QUERY
+#define RAY_MARCHING
+#define RUNGE_KUTTE_1
+#include "black_hole_common.comp"

@@ -168,6 +168,7 @@ Buffer& GPUAllocator::AddBuffer(VkDevice device, const CreateBufferInfo& createB
                     const auto& alignment = memoryRequirements.alignment;
                     const VkDeviceSize memoryOffset = ((memorySize[i] + alignment - 1ULL) & (~(alignment - 1ULL)));
 
+                    useDeviceAddressableMemory[i] |= createBufferInfo.useDeviceAddressableMemory;
                     memorySize[i] = memoryOffset + memoryRequirements.size;
                     bufferInfos.emplace_back(buffer, createBufferInfo, i, memoryOffset);
                     bufferMapper[createBufferInfo.name] = &bufferInfos.back().buffer;
@@ -192,9 +193,16 @@ void GPUAllocator::PresentResources(VkDevice device) {
     // Allocate Memory
     for (uint32_t i = 0U; i < VK_MAX_MEMORY_TYPES; i++) {
         if (memorySize[i] != 0ULL) {
+            VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo {
+                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+                .pNext = nullptr,
+                .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
+                .deviceMask = 0U
+            };
+
             VkMemoryAllocateInfo memoryAllocateInfo {
                 .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                .pNext = nullptr,
+                .pNext = (useDeviceAddressableMemory[i] ? &memoryAllocateFlagsInfo : nullptr),
                 .allocationSize = memorySize[i],
                 .memoryTypeIndex = i
             };

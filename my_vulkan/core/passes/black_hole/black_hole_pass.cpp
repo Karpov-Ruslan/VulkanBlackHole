@@ -9,9 +9,8 @@
 
 #include <cstring>
 #include <cmath>
+#include <utility>
 
-// TODO: Move it into another file
-#define STB_IMAGE_IMPLEMENTATION
 #include "third-party/stb_image.h"
 
 namespace {
@@ -48,6 +47,11 @@ void BlackHolePass::AllocateResources(VkDevice device, Utils::GPUAllocator& gpuA
     pPrecomputedPhiTexture = &gpuAllocator.GetImage(PRECOMPUTED_PHI_TEXTURE_NAME);
     pPrecomputedAccrDiskDataTexture = &gpuAllocator.GetImage(PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_NAME);
 #endif // BLACK_HOLE_PRECOMPUTED
+
+#ifdef BLACK_HOLE_RAY_QUERY
+    AllocateBottomLevelAS(device, gpuAllocator);
+    AllocateTopLevelAS(device, gpuAllocator);
+#endif // BLACK_HOLE_RAY_QUERY
 }
 
 void BlackHolePass::Init(VkDevice device) {
@@ -57,17 +61,30 @@ void BlackHolePass::Init(VkDevice device) {
 }
 
 void BlackHolePass::Destroy(VkDevice device) {
-    vkDestroyPipeline(device, pipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-    vkDestroySampler(device, sampler, nullptr);
+
+#ifdef BLACK_HOLE_RAY_QUERY
+    vkDestroyAccelerationStructureKHR(device, std::exchange(tlasInfo.tlas, VK_NULL_HANDLE), nullptr);
+
+    for (auto &blasInfo : blasInfos) {
+        vkDestroyAccelerationStructureKHR(device, std::exchange(blasInfo.blas, VK_NULL_HANDLE), nullptr);
+    }
+#endif // BLACK_HOLE_RAY_QUERY
+
+    vkDestroyPipeline(device, std::exchange(pipeline, VK_NULL_HANDLE), nullptr);
+    vkDestroyPipelineLayout(device, std::exchange(pipelineLayout, VK_NULL_HANDLE), nullptr);
+    vkDestroyDescriptorSetLayout(device, std::exchange(descriptorSetLayout, VK_NULL_HANDLE), nullptr);
+    vkDestroyDescriptorPool(device, std::exchange(descriptorPool, VK_NULL_HANDLE), nullptr);
+    vkDestroySampler(device, std::exchange(sampler, VK_NULL_HANDLE), nullptr);
 }
 
 void BlackHolePass::RecordCommandBuffer(VkDevice device, VkCommandBuffer commandBuffer) {
     Utils::DebugUtils::LabelGuard labelGuard(commandBuffer, "BlackHolePass", 0.5F, 0.0F, 0.0F);
 
     if (isFirstRecording) {
+#ifdef BLACK_HOLE_RAY_QUERY
+        BuildBottomLevelASes(device, commandBuffer);
+        BuildTopLevelAS(device, commandBuffer);
+#endif // BLACK_HOLE_RAY_QUERY
         LoadCubeMap(device, commandBuffer);
         isFirstRecording = false;
     }
@@ -131,6 +148,12 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .descriptorCount = 3U
 #endif // BLACK_HOLE_PRECOMPUTED
         },
+#ifdef BLACK_HOLE_RAY_QUERY
+        {
+            .type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+            .descriptorCount = 1U
+        },
+#endif // BLACK_HOLE_RAY_QUERY
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             .descriptorCount = 1U
@@ -181,6 +204,15 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .pImmutableSamplers = &sampler
         }
 #endif // BLACK_HOLE_PRECOMPUTED
+#ifdef BLACK_HOLE_RAY_QUERY
+        ,{
+            .binding = BINDING_RAY_QUERY_TLAS,
+            .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+            .descriptorCount = 1U,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr
+        }
+#endif // BLACK_HOLE_RAY_QUERY
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo {
@@ -235,6 +267,15 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
         }
 #endif // BLACK_HOLE_PRECOMPUTED
     };
+
+#ifdef BLACK_HOLE_RAY_QUERY
+    VkWriteDescriptorSetAccelerationStructureKHR tlasWriteDescriptor {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+        .pNext = nullptr,
+        .accelerationStructureCount = 1U,
+        .pAccelerationStructures = &tlasInfo.tlas
+    };
+#endif // BLACK_HOLE_RAY_QUERY
 
     VkWriteDescriptorSet writeDescriptors[] = {
         // Final Image
@@ -291,6 +332,21 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .pTexelBufferView = nullptr
         }
 #endif // BLACK_HOLE_PRECOMPUTED
+#ifdef BLACK_HOLE_RAY_QUERY
+        // Top Level Acceleration Structure
+        ,{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = &tlasWriteDescriptor,
+            .dstSet = descriptorSet,
+            .dstBinding = BINDING_RAY_QUERY_TLAS,
+            .dstArrayElement = 0U,
+            .descriptorCount = 1U,
+            .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+            .pImageInfo = nullptr,
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
+        }
+#endif // BLACK_HOLE_RAY_QUERY
     };
 
     vkUpdateDescriptorSets(device, std::size(writeDescriptors), writeDescriptors, 0U, nullptr);
@@ -321,6 +377,8 @@ void BlackHolePass::InitPipeline(VkDevice device) {
 
 #ifdef BLACK_HOLE_PRECOMPUTED
     Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTED_COMP);
+#elif defined(BLACK_HOLE_RAY_QUERY)
+    Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_RAY_QUERY_COMP);
 #elif defined(BLACK_HOLE_RAY_MARCHING_RK1)
     Utils::ShaderModule blackHoleComp = Utils::ShaderModule(device, Utils::SHADER_LIST_ID::BLACK_HOLE_RAY_MARCHING_RK1_COMP);
 #elif defined(BLACK_HOLE_RAY_MARCHING_RK2)
@@ -457,5 +515,330 @@ void BlackHolePass::LoadCubeMap(VkDevice device, VkCommandBuffer commandBuffer) 
     Utils::ImagePipelineBarrier(commandBuffer, *pCubeMap, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, {VK_IMAGE_ASPECT_COLOR_BIT, 0U, 1U, 0U, cubeMapFacesNum});
 }
+
+#ifdef BLACK_HOLE_RAY_QUERY
+
+void BlackHolePass::AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &gpuAllocator) {
+    blasInfos.push_back({});
+    auto &blasInfo = blasInfos.back();
+    auto &objData = blasInfo.objData;
+    uint32_t idx = blasInfos.size() - 1U;
+    objData.Init(std::format("objects/obj{}.obj", idx));
+    blasInfo.transformMatrix = blasTransformMatrices[idx];
+
+    VkAccelerationStructureGeometryTrianglesDataKHR const geometryTrianglesData {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+        .pNext = nullptr,
+        .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
+        .vertexData = {
+            .deviceAddress = 0ULL
+        },
+        .vertexStride = 3U*sizeof(float),
+        .maxVertex = static_cast<uint32_t>(objData.GetVertices().size()) - 1U,
+        .indexType = VK_INDEX_TYPE_UINT32,
+        .indexData = {
+            .deviceAddress = 0ULL
+        },
+        .transformData = {
+            .deviceAddress = 0ULL
+        }
+    };
+
+    VkAccelerationStructureGeometryKHR &geometry = blasInfo.geometry;
+    geometry = {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        .pNext = nullptr,
+        .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
+        .geometry = {
+            .triangles = geometryTrianglesData
+        },
+        .flags = VK_GEOMETRY_OPAQUE_BIT_KHR
+    };
+
+    VkAccelerationStructureBuildRangeInfoKHR &buildRangeInfo = blasInfo.buildRangeInfo;
+    buildRangeInfo = {
+        .primitiveCount = objData.GetNumOfTriangles(),
+        .primitiveOffset = 0U,
+        .firstVertex = 0U,
+        .transformOffset = 0U
+    };
+
+    VkAccelerationStructureBuildGeometryInfoKHR &buildGeometryInfo = blasInfo.buildGeometryInfo;
+    buildGeometryInfo = {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        .pNext = nullptr,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        .srcAccelerationStructure = VK_NULL_HANDLE,
+        .dstAccelerationStructure = VK_NULL_HANDLE,
+        .geometryCount = 1U,
+        .pGeometries = &geometry,
+        .ppGeometries = nullptr,
+        .scratchData = {
+            .deviceAddress = 0ULL
+        }
+    };
+
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
+        .pNext = nullptr
+    };
+
+    vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        &buildGeometryInfo, &buildRangeInfo.primitiveCount, &sizeInfo);
+
+    Utils::CreateBufferInfo bottomLevelASBufferCI {
+        .size = sizeInfo.accelerationStructureSize,
+        .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        .useDeviceAddressableMemory = true,
+        .name = std::format("BlackHolePass::Bottom Level AS Buffer [{}]", idx)
+    };
+
+    Buffer* &pUnderlyingBuffer = blasInfo.pUnderlyingBLASBuffer;
+    pUnderlyingBuffer = &gpuAllocator.AddBuffer(device, bottomLevelASBufferCI);
+
+    Utils::CreateBufferInfo vertexBufferCI {
+        .size = static_cast<uint32_t>(objData.GetVertices().size()*sizeof(float)),
+        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
+        .useDeviceAddressableMemory = true,
+        .name = std::format("BlackHolePass::Bottom Level AS Vertex Buffer [{}]", idx)
+    };
+    blasInfo.pVertexBuffer = &gpuAllocator.AddBuffer(device, vertexBufferCI);
+
+    Utils::CreateBufferInfo indexBufferCI {
+        .size = static_cast<uint32_t>(objData.GetVertexIndices().size()*sizeof(uint32_t)),
+        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
+        .useDeviceAddressableMemory = true,
+        .name = std::format("BlackHolePass::Bottom Level AS Index Buffer [{}]", idx)
+    };
+    blasInfo.pIndexBuffer = &gpuAllocator.AddBuffer(device, indexBufferCI);
+
+    VkAccelerationStructureCreateInfoKHR const accelerationStructureCI {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .createFlags = 0U,
+        .buffer = pUnderlyingBuffer->buffer,
+        .offset = 0U,
+        .size = sizeInfo.accelerationStructureSize,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        .deviceAddress = 0ULL
+    };
+
+    VkAccelerationStructureKHR &blas = blasInfo.blas;
+    VK_CALL(vkCreateAccelerationStructureKHR(device, &accelerationStructureCI, nullptr, &blas));
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, blas,
+        std::format("BlackHolePass::Bottom Level AS [{}]", idx).c_str());
+
+    scratchBufferSize = std::max(scratchBufferSize, sizeInfo.buildScratchSize);
+
+    buildGeometryInfo.dstAccelerationStructure = blas;
+}
+
+void BlackHolePass::BuildBottomLevelASes(VkDevice device, VkCommandBuffer commandBuffer) {
+    Utils::DebugUtils::LabelGuard loadGuard(commandBuffer, "BuildBottomLevelAS", 0.5F, 0.0F, 0.5F);
+
+    VkBufferDeviceAddressInfo bufferDeviceAddressInfo {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .pNext = nullptr,
+        .buffer = pScratchBuffer->buffer
+    };
+    VkDeviceAddress scratchBufferDeviceAddress = ((vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo) + 255ULL) & (~255ULL));
+
+    for (auto &blasInfo : blasInfos) {
+        VkBuffer vertexBuffer = blasInfo.pVertexBuffer->buffer;
+        auto const &vertexData = blasInfo.objData.GetVertices();
+        vkCmdUpdateBuffer(commandBuffer, vertexBuffer, 0ULL, vertexData.size()*sizeof(float), vertexData.data());
+
+        VkBuffer indexBuffer = blasInfo.pIndexBuffer->buffer;
+        auto const &indexData = blasInfo.objData.GetVertexIndices();
+        vkCmdUpdateBuffer(commandBuffer, indexBuffer, 0ULL, indexData.size()*sizeof(uint32_t), indexData.data());
+
+        Utils::MemoryPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+            VK_ACCESS_SHADER_READ_BIT);
+
+        VkAccelerationStructureGeometryTrianglesDataKHR &geometryTrianglesData = blasInfo.geometry.geometry.triangles;
+        bufferDeviceAddressInfo.buffer = vertexBuffer;
+        geometryTrianglesData.vertexData.deviceAddress = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
+        bufferDeviceAddressInfo.buffer = indexBuffer;
+        geometryTrianglesData.indexData.deviceAddress = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
+        blasInfo.buildGeometryInfo.scratchData.deviceAddress = scratchBufferDeviceAddress;
+
+        VkAccelerationStructureBuildRangeInfoKHR const *pBuildRangeInfo = &blasInfo.buildRangeInfo;
+        vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1U, &blasInfo.buildGeometryInfo, &pBuildRangeInfo);
+
+        Utils::MemoryPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+            VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+            VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
+    }
+}
+
+void BlackHolePass::AllocateTopLevelAS(VkDevice device, Utils::GPUAllocator &gpuAllocator) {
+    for (uint32_t i = 0U; i < blasInfos.size(); i++) {
+        auto &blasInfo = blasInfos[i];
+
+        tlasInfo.instances.push_back(VkAccelerationStructureInstanceKHR{
+            .transform = blasInfo.transformMatrix,
+            .instanceCustomIndex = i,
+            .mask = 0xFFU,
+            .instanceShaderBindingTableRecordOffset = 0U,
+            .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
+            .accelerationStructureReference = 0ULL
+        });
+    }
+
+    VkAccelerationStructureGeometryInstancesDataKHR const geometryInstancesData {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+        .pNext = nullptr,
+        .arrayOfPointers = VK_FALSE,
+        .data = {
+            .deviceAddress = 0ULL
+        }
+    };
+
+    VkAccelerationStructureGeometryKHR &geometry = tlasInfo.geometry;
+    geometry = {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        .pNext = nullptr,
+        .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
+        .geometry = {
+            .instances = geometryInstancesData
+        },
+        .flags = VK_GEOMETRY_OPAQUE_BIT_KHR
+    };
+
+    VkAccelerationStructureBuildRangeInfoKHR &buildRangeInfo = tlasInfo.buildRangeInfo;
+    buildRangeInfo = {
+        .primitiveCount = static_cast<uint32_t>(tlasInfo.instances.size()),
+        .primitiveOffset = 0U,
+        .firstVertex = 0U,
+        .transformOffset = 0U
+    };
+
+    VkAccelerationStructureBuildGeometryInfoKHR &buildGeometryInfo = tlasInfo.buildGeometryInfo;
+    buildGeometryInfo = {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        .pNext = nullptr,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        .srcAccelerationStructure = VK_NULL_HANDLE,
+        .dstAccelerationStructure = VK_NULL_HANDLE,
+        .geometryCount = 1U,
+        .pGeometries = &geometry,
+        .ppGeometries = nullptr,
+        .scratchData = {
+            .hostAddress = nullptr
+        }
+    };
+
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
+        .pNext = nullptr
+    };
+
+    vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        &buildGeometryInfo, &buildRangeInfo.primitiveCount, &sizeInfo);
+
+    Utils::CreateBufferInfo topLevelASBufferCI {
+        .size = sizeInfo.accelerationStructureSize,
+        .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+        .name = "BlackHolePass::Top Level AS Buffer"
+    };
+
+    Buffer* &pUnderlyingBuffer = tlasInfo.pUnderlyingBLASBuffer;
+    pUnderlyingBuffer = &gpuAllocator.AddBuffer(device, topLevelASBufferCI);
+
+    VkAccelerationStructureCreateInfoKHR const accelerationStructureCI {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .createFlags = 0U,
+        .buffer = pUnderlyingBuffer->buffer,
+        .offset = 0U,
+        .size = sizeInfo.accelerationStructureSize,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        .deviceAddress = 0ULL
+    };
+
+    VkAccelerationStructureKHR &tlas = tlasInfo.tlas;
+    VK_CALL(vkCreateAccelerationStructureKHR(device, &accelerationStructureCI, nullptr, &tlas));
+    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, tlas,
+        "BlackHolePass::Top Level AS");
+
+    scratchBufferSize = std::max(scratchBufferSize, sizeInfo.buildScratchSize);
+    Utils::CreateBufferInfo scratchBufferCI {
+        .size = ((scratchBufferSize + 255ULL) & (~255ULL)),
+        .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        .useDeviceAddressableMemory = true,
+        .name = "BlackHolePass::ScratchBuffer"
+    };
+    pScratchBuffer = &gpuAllocator.AddBuffer(device, scratchBufferCI);
+
+    Utils::CreateBufferInfo instanceBufferCI {
+        .size = sizeof(VkAccelerationStructureInstanceKHR)*tlasInfo.instances.size(),
+        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
+        .useDeviceAddressableMemory = true,
+        .name = "BlackHolePass::Top Level AS Instance Buffer"
+    };
+    tlasInfo.pInstanceBuffer = &gpuAllocator.AddBuffer(device, instanceBufferCI);
+
+    buildGeometryInfo.dstAccelerationStructure = tlas;
+}
+
+void BlackHolePass::BuildTopLevelAS(VkDevice device, VkCommandBuffer commandBuffer) {
+    Utils::DebugUtils::LabelGuard loadGuard(commandBuffer, "BuildTopLevelAS", 1.0F, 0.0F, 1.0F);
+
+    for (uint32_t i = 0U; i < tlasInfo.instances.size(); i++) {
+        VkAccelerationStructureDeviceAddressInfoKHR const deviceAddressInfo {
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
+            .pNext = nullptr,
+            .accelerationStructure = blasInfos[i].blas
+        };
+
+        VkDeviceAddress blasDeviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &deviceAddressInfo);
+
+        tlasInfo.instances[i].accelerationStructureReference = blasDeviceAddress;
+    }
+
+    VkBuffer instanceBuffer = tlasInfo.pInstanceBuffer->buffer;
+    vkCmdUpdateBuffer(commandBuffer, instanceBuffer, 0ULL,
+        sizeof(VkAccelerationStructureInstanceKHR)*tlasInfo.instances.size(), tlasInfo.instances.data());
+
+    Utils::MemoryPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+            VK_ACCESS_SHADER_READ_BIT);
+
+    VkBufferDeviceAddressInfo bufferDeviceAddressInfo {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .pNext = nullptr,
+        .buffer = pScratchBuffer->buffer
+    };
+    VkDeviceAddress scratchBufferDeviceAddress = ((vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo) + 255ULL) & (~255ULL));
+    tlasInfo.buildGeometryInfo.scratchData.deviceAddress = scratchBufferDeviceAddress;
+
+    bufferDeviceAddressInfo.buffer = tlasInfo.pInstanceBuffer->buffer;
+    tlasInfo.geometry.geometry.instances.data.deviceAddress = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
+
+    VkAccelerationStructureBuildRangeInfoKHR const *pBuildRangeInfo = &tlasInfo.buildRangeInfo;
+    vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1U, &tlasInfo.buildGeometryInfo, &pBuildRangeInfo);
+
+    Utils::MemoryPipelineBarrier(commandBuffer,
+        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+        VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+}
+
+#endif // BLACK_HOLE_RAY_QUERY
 
 }

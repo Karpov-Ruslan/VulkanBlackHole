@@ -34,7 +34,7 @@ void DebugUtils::NameImpl(VkDevice device, VkDebugUtilsObjectNameInfoEXT const &
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtils::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType, VkDebugUtilsMessengerCallbackDataEXT const *pCallbackData, void* pUserData) {
 
-    auto const printVVL = [](VkDebugUtilsMessengerCallbackDataEXT const *pCallbackData){
+    static auto const printVVL = [](VkDebugUtilsMessengerCallbackDataEXT const *pCallbackData){
         std::cout << "\n\tObjects: ";
         for (uint32_t i = 0U; i < pCallbackData->objectCount; i++) {
             auto const &objectName = pCallbackData->pObjects[i].pObjectName;

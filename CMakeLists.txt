@@ -19,6 +19,7 @@ set_property(CACHE BLACK_HOLE_RENDER_MODE PROPERTY STRINGS
     "RAY_MARCHING_RK4"
     "RAY_MARCHING_RK2"
     "RAY_MARCHING_RK1"
+    "RAY_QUERY"
     "PRECOMPUTED"
 )
 
@@ -37,9 +38,11 @@ endif()
 add_executable(${PROJECT_NAME}
     main.cpp
     app.cpp
+    third-party/third_party.cpp
     utils/clock.cpp
     utils/window.cpp
     utils/camera.cpp
+    utils/obj_data.cpp
     my_vulkan/utils.cpp
     my_vulkan/gpu_allocator.cpp
     my_vulkan/vulkan_controller.cpp
@@ -64,6 +67,16 @@ add_custom_target(TEXTURE_COPY
     COMMENT "Copying textures into build folder..."
 )
 add_dependencies(${PROJECT_NAME} TEXTURE_COPY)
+
+# Copy textures into build directory
+add_custom_target(OBJECTS_COPY
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/objects"
+        "${CMAKE_CURRENT_BINARY_DIR}/objects"
+    WORKING_DIRECTORY "./"
+    COMMENT "Copying objects into build folder..."
+)
+add_dependencies(${PROJECT_NAME} OBJECTS_COPY)
 
 # SPIR-V files generation
 find_package(Python3 REQUIRED COMPONENTS Interpreter)

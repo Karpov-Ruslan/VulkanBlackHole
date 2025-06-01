@@ -18,6 +18,10 @@ const std::unordered_map<SHADER_LIST_ID, std::vector<uint32_t>> shaderList = {
         #include <black_hole_ray_marching_rk1.comp.spv>
     },
     {
+        SHADER_LIST_ID::BLACK_HOLE_RAY_QUERY_COMP,
+        #include <black_hole_ray_query.comp.spv>
+    },
+    {
         SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTED_COMP,
         #include <black_hole_precomputed.comp.spv>
     },

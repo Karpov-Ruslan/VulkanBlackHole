@@ -3,6 +3,11 @@
 
 #include "black_hole.in"
 
+#ifdef RAY_QUERY
+#extension GL_EXT_ray_query : require
+#extension GL_EXT_ray_flags_primitive_culling : require
+#endif // RAY_QUERY
+
 // Black Hole params
 // Black hole center is (0.0, 0.0, 0.0)
 const float INV_BLACK_HOLE_RADIUS = 1.0F/BLACK_HOLE_RADIUS;
@@ -33,12 +38,16 @@ layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 
 layout(set = 0, binding = BINDING_FINAL_IMAGE, rgba8) uniform restrict writeonly image2D outImage;
 layout(set = 0, binding = BINDING_CUBE_MAP) uniform samplerCube spaceCubeMap;
 
-#ifdef PRECOMPUTED
+#if defined(PRECOMPUTED)
 
 layout(set = 0, binding = BINDING_PRECOMPUTED_PHI_TEXTURE) uniform sampler2D precomputedPhiTexture;
 layout(set = 0, binding = BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE) uniform sampler3D precomputedAccrDiskDataTexture;
 
-#endif // PRECOMPUTED
+#elif defined(RAY_QUERY)
+
+layout(set = 0, binding = BINDING_RAY_QUERY_TLAS) uniform accelerationStructureEXT topLevelAS;
+
+#endif // PRECOMPUTED, RAY_QUERY
 
 layout(push_constant) uniform PushConst {
     layout(offset = PUSH_CONSTANT_CAMERA_POSITION_OFFSET)  vec3 cameraPos;
@@ -167,8 +176,30 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
         uInfo = rk(uInfo, h);
         phi += h;
 
+#if defined(RAY_QUERY)
+        vec3 oldPosition = position;
+        vec3 oldDirection = direction;
+        transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
+
+        rayQueryEXT rayQuery;
+        rayQueryInitializeEXT(rayQuery, topLevelAS, (gl_RayFlagsCullNoOpaqueEXT | gl_RayFlagsSkipAABBEXT),
+            0xFF, oldPosition, 0.0F, position - oldPosition, 1.0F);
+        while(rayQueryProceedEXT(rayQuery)) {
+            // Only triangulated opaque objects are traversed.
+            // So no need to commit intersections.
+        }
+
+        if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
+            // TODO: Change it!
+            outputColor += vec3(0.5F);
+            return outputColor;
+        }
+
+        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
+#else // Simple ray marching
         transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
         outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
+#endif // RAY_QUERY
     }
 
     // Case: Go into infinity

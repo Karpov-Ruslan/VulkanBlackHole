@@ -12,7 +12,18 @@ namespace {
 
 constexpr char const *VK_LAYER_KHRONOS_VALIDATION_NAME = "VK_LAYER_KHRONOS_validation";
 
+#ifdef BLACK_HOLE_RAY_QUERY
+constexpr uint32_t VULKAN_API_VERSION = VK_API_VERSION_1_2;
+#else
+constexpr uint32_t VULKAN_API_VERSION = VK_API_VERSION_1_0;
+#endif // BLACK_HOLE_RAY_QUERY
+
 constexpr char const *requiredDeviceExtensions[] = {
+#ifdef BLACK_HOLE_RAY_QUERY
+    VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+    VK_KHR_RAY_QUERY_EXTENSION_NAME,
+    VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+#endif // BLACK_HOLE_RAY_QUERY
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
@@ -59,7 +70,7 @@ void VulkanController::InitInstance() {
         .applicationVersion = 1,
         .pEngineName = "EngineName",
         .engineVersion = 1,
-        .apiVersion = VK_API_VERSION_1_0
+        .apiVersion = VULKAN_API_VERSION
     };
 
     VkInstanceCreateInfo instanceCI {
@@ -79,6 +90,13 @@ void VulkanController::InitInstance() {
     constexpr char const *messageSeverity[] = {"error"};
 
     VkLayerSettingEXT layerSettings[] = {
+        {
+            .pLayerName = VK_LAYER_KHRONOS_VALIDATION_NAME,
+            .pSettingName = "syncval_shader_accesses_heuristic",
+            .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+            .valueCount = 1U,
+            .pValues = &vkTrue
+        },
         {
             .pLayerName = VK_LAYER_KHRONOS_VALIDATION_NAME,
             .pSettingName = "validate_sync",
@@ -208,11 +226,34 @@ void VulkanController::InitDevice() {
     ////////////////////////////////////////////////////////////////
 
     ///////////////// Device Extensions Structures /////////////////
+    VkPhysicalDeviceBufferDeviceAddressFeatures deviceAddressFeatures {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+        .pNext = nullptr,
+        .bufferDeviceAddress = VK_TRUE,
+        .bufferDeviceAddressCaptureReplay = VK_FALSE,
+        .bufferDeviceAddressMultiDevice = VK_FALSE
+    };
+
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
+        .pNext = &deviceAddressFeatures,
+        .rayQuery = VK_TRUE
+    };
+
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+        .pNext = &rayQueryFeatures,
+        .accelerationStructure = VK_TRUE,
+        .accelerationStructureCaptureReplay = VK_FALSE,
+        .accelerationStructureIndirectBuild = VK_FALSE,
+        .accelerationStructureHostCommands = VK_FALSE,
+        .descriptorBindingAccelerationStructureUpdateAfterBind = VK_FALSE
+    };
     ////////////////////////////////////////////////////////////////
 
     VkDeviceCreateInfo deviceCI {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = &asFeatures,
         .flags = 0U,
         .queueCreateInfoCount = 1U,
         .pQueueCreateInfos = &deviceQueueCI,

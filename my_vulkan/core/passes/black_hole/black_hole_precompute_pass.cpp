@@ -7,6 +7,8 @@
 
 #include "common.hpp"
 
+#include <utility>
+
 namespace KRV {
 
 void BlackHolePrecomputePass::AllocateResources(VkDevice device, Utils::GPUAllocator& gpuAllocator) {
@@ -45,11 +47,11 @@ void BlackHolePrecomputePass::Init(VkDevice device) {
 }
 
 void BlackHolePrecomputePass::Destroy(VkDevice device) {
-    vkDestroyPipeline(device, precomputePhiPipeline, nullptr);
-    vkDestroyPipeline(device, precomputeAccrDiskDataPipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+    vkDestroyPipeline(device, std::exchange(precomputePhiPipeline, VK_NULL_HANDLE), nullptr);
+    vkDestroyPipeline(device, std::exchange(precomputeAccrDiskDataPipeline, VK_NULL_HANDLE), nullptr);
+    vkDestroyPipelineLayout(device, std::exchange(pipelineLayout, VK_NULL_HANDLE), nullptr);
+    vkDestroyDescriptorSetLayout(device, std::exchange(descriptorSetLayout, VK_NULL_HANDLE), nullptr);
+    vkDestroyDescriptorPool(device, std::exchange(descriptorPool, VK_NULL_HANDLE), nullptr);
 }
 
 void BlackHolePrecomputePass::RecordCommandBuffer(VkDevice device, VkCommandBuffer commandBuffer) {

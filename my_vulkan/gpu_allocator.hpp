@@ -32,6 +32,7 @@ struct CreateImageInfo {
 struct CreateBufferInfo {
     VkDeviceSize size = 0U;
     VkBufferUsageFlags usage = 0U;
+    bool useDeviceAddressableMemory = false;
     std::string name = "";
 };
 
@@ -95,6 +96,7 @@ private:
     VkPhysicalDeviceMemoryProperties memoryProperties = {};
     VkDeviceMemory deviceMemory[VK_MAX_MEMORY_TYPES] = {};
     VkDeviceSize memorySize[VK_MAX_MEMORY_TYPES] = {};
+    bool useDeviceAddressableMemory[VK_MAX_MEMORY_TYPES] = {};
 };
 
 }

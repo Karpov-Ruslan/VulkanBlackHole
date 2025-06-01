@@ -9,6 +9,7 @@ shaders_list = {
     "black_hole_ray_marching_rk4.comp",
     "black_hole_ray_marching_rk2.comp",
     "black_hole_ray_marching_rk1.comp",
+    "black_hole_ray_query.comp",
     "black_hole_precomputed.comp",
     "black_hole_precompute_phi_texture.comp",
     "black_hole_precompute_accr_disk_data_texture.comp"

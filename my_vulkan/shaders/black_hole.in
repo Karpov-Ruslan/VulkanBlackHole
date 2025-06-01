@@ -13,6 +13,7 @@
 #define BINDING_CUBE_MAP                            1U
 #define BINDING_PRECOMPUTED_PHI_TEXTURE             2U
 #define BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE  3U
+#define BINDING_RAY_QUERY_TLAS                      4U
 
 #define PRECOMPUTED_PHI_TEXTURE_WIDTH                   2000U
 #define PRECOMPUTED_PHI_TEXTURE_HEIGHT                  2000U
