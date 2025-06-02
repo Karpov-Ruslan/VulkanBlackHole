@@ -66,6 +66,8 @@ private:
     static void NameImpl(VkDevice device, VkDebugUtilsObjectNameInfoEXT const &objectNameInfo);
 };
 
+void CopyMemoryIntoStagingBuffer(VkDevice device, Buffer &stagingBuffer, void *data, VkDeviceSize size);
+
 void MemoryPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStage, VkAccessFlags srcAccess, VkPipelineStageFlags dstStage, VkAccessFlags dstAccess);
 
 void ImageChangeProperties(Image& image, VkImageLayout newLayout, VkPipelineStageFlags dstStage, VkAccessFlags dstAccess);

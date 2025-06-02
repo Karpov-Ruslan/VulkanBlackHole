@@ -57,9 +57,14 @@ private:
         VkAccelerationStructureGeometryKHR geometry{};
         VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{};
         VkAccelerationStructureKHR blas = VK_NULL_HANDLE;
+        Buffer *pTexCoordsBuffer = nullptr;
+        Buffer *pTexCoordIndicesBuffer = nullptr;
         Buffer *pVertexBuffer = nullptr;
         Buffer *pIndexBuffer = nullptr;
         Buffer *pUnderlyingBLASBuffer = nullptr;
+        std::string textureFileName = "";
+        Image *pTexture = nullptr;
+        Buffer *pStagingBuffer = nullptr;
     };
 
     struct TlasInfo final {
@@ -74,6 +79,8 @@ private:
 
     std::vector<BlasInfo> blasInfos;
     TlasInfo tlasInfo{};
+    std::vector<VkDeviceAddress> texCoordsDeviceAddress;
+    std::vector<VkDeviceAddress> texCoordIndicesDeviceAddress;
     // General scratch buffer for all acceleration structures.
     VkDeviceSize scratchBufferSize = 0ULL;
     Buffer *pScratchBuffer = nullptr;

@@ -10,8 +10,8 @@ constexpr char const PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_NAME[] = "BlackHolePreco
 constexpr VkTransformMatrixKHR const blasTransformMatrices[] = {
     {
         1.0F, 0.0F, 0.0F, 0.0F,
-        0.0F, 1.0F, 0.0F, -3.0F,
-        0.0F, 0.0F, 1.0F, 0.0F
+        0.0F, 0.0F, -1.0F, -1.3F,
+        0.0F, 1.0F, 0.0F, 0.0F
     }
 };
 

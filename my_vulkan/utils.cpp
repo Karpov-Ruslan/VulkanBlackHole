@@ -2,6 +2,7 @@
 #include "my_vulkan/vulkan_functions.hpp"
 
 #include <iostream>
+#include <cstring>
 
 namespace KRV::Utils {
 
@@ -64,6 +65,26 @@ VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtils::DebugCallback(VkDebugUtilsMessageSeve
     }
 
     return VK_FALSE;
+}
+
+void CopyMemoryIntoStagingBuffer(VkDevice device, Buffer &stagingBuffer, void *data, VkDeviceSize size) {
+    std::vector<uint8_t> mappedStagingBuffer(size);
+    void *pMappedStagingBuffer = mappedStagingBuffer.data();
+    VK_CALL(vkMapMemory(device, stagingBuffer.deviceMemory, stagingBuffer.deviceMemoryOffset, size, 0U, &pMappedStagingBuffer));
+
+    std::memcpy(pMappedStagingBuffer, data, size);
+
+    VkMappedMemoryRange mappedMemoryRange {
+        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .pNext = nullptr,
+        .memory = stagingBuffer.deviceMemory,
+        .offset = stagingBuffer.deviceMemoryOffset,
+        .size = size
+    };
+
+    VK_CALL(vkFlushMappedMemoryRanges(device, 1U, &mappedMemoryRange));
+
+    vkUnmapMemory(device, stagingBuffer.deviceMemory);
 }
 
 void ImageChangeProperties(Image& image, VkImageLayout newLayout, VkPipelineStageFlags dstStage, VkAccessFlags dstAccess) {

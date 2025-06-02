@@ -98,10 +98,32 @@ void BlackHolePass::RecordCommandBuffer(VkDevice device, VkCommandBuffer command
     camera.Update();
     auto const &position = camera.GetPosition();
     auto const &direction = camera.GetDirection();
+
+#pragma pack(push, 1)
+    struct PushConst final {
+        glm::vec3 cameraPos;
+        float placeholder1 = 0.0F;
+        glm::vec3 cameraDir;
+#ifdef BLACK_HOLE_RAY_QUERY
+        float placeholder2 = 0.0F;
+        VkDeviceAddress texCoordsDeviceAddress[NUM_OF_BLAS_TEXTURES];
+        VkDeviceAddress texCoordIndicesDeviceAddress[NUM_OF_BLAS_TEXTURES];
+#endif // BLACK_HOLE_RAY_QUERY
+    } pushConst {
+        .cameraPos = position,
+        .cameraDir = direction,
+    };
+#pragma pack(pop)
+
+#ifdef BLACK_HOLE_RAY_QUERY
+    std::memcpy(pushConst.texCoordsDeviceAddress, texCoordsDeviceAddress.data(),
+        texCoordsDeviceAddress.size()*sizeof(VkDeviceAddress));
+    std::memcpy(pushConst.texCoordIndicesDeviceAddress, texCoordIndicesDeviceAddress.data(),
+        texCoordIndicesDeviceAddress.size()*sizeof(VkDeviceAddress));
+#endif // BLACK_HOLE_RAY_QUERY
+
     vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
-        PUSH_CONSTANT_CAMERA_POSITION_OFFSET, 3U*sizeof(float), &position);
-    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
-        PUSH_CONSTANT_CAMERA_DIRECTION_OFFSET, 3U*sizeof(float), &direction);
+        0U, sizeof(PushConst), &pushConst);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0U, 1U, &descriptorSet, 0U, nullptr);
@@ -142,10 +164,12 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
         {
             .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-#ifndef BLACK_HOLE_PRECOMPUTED
-            .descriptorCount = 1U
-#else
+#if defined(BLACK_HOLE_PRECOMPUTED)
             .descriptorCount = 3U
+#elif defined(BLACK_HOLE_RAY_QUERY)
+            .descriptorCount = 1U + NUM_OF_BLAS_TEXTURES
+#else
+            .descriptorCount = 1U
 #endif // BLACK_HOLE_PRECOMPUTED
         },
 #ifdef BLACK_HOLE_RAY_QUERY
@@ -173,7 +197,27 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
 
     Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_DESCRIPTOR_POOL, descriptorPool, "BlackHolePass::DescriptorPool");
 
+#ifdef BLACK_HOLE_RAY_QUERY
+    std::vector<VkSampler> linearSamplers(NUM_OF_BLAS_TEXTURES, sampler);
+#endif // BLACK_HOLE_RAY_QUERY
+
     VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[] = {
+#ifdef BLACK_HOLE_RAY_QUERY
+        {
+            .binding = BINDING_RAY_QUERY_TEXTURES,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = NUM_OF_BLAS_TEXTURES,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = linearSamplers.data()
+        },
+        {
+            .binding = BINDING_RAY_QUERY_TLAS,
+            .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+            .descriptorCount = 1U,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr
+        },
+#endif // BLACK_HOLE_RAY_QUERY
         {
             .binding = BINDING_FINAL_IMAGE,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -204,20 +248,27 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .pImmutableSamplers = &sampler
         }
 #endif // BLACK_HOLE_PRECOMPUTED
-#ifdef BLACK_HOLE_RAY_QUERY
-        ,{
-            .binding = BINDING_RAY_QUERY_TLAS,
-            .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-            .descriptorCount = 1U,
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-            .pImmutableSamplers = nullptr
-        }
-#endif // BLACK_HOLE_RAY_QUERY
     };
+
+#ifdef BLACK_HOLE_RAY_QUERY
+    VkDescriptorBindingFlags bindingFlags[std::size(descriptorSetLayoutBindings)] = {};
+    bindingFlags[0] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCI {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+        .pNext = nullptr,
+        .bindingCount = std::size(bindingFlags),
+        .pBindingFlags = bindingFlags
+    };
+#endif // BLACK_HOLE_RAY_QUERY
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+#ifdef BLACK_HOLE_RAY_QUERY
+        .pNext = &bindingFlagsCI,
+#else
         .pNext = nullptr,
+#endif // BLACK_HOLE_RAY_QUERY
         .flags = 0U,
         .bindingCount = std::size(descriptorSetLayoutBindings),
         .pBindings = descriptorSetLayoutBindings
@@ -275,6 +326,15 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
         .accelerationStructureCount = 1U,
         .pAccelerationStructures = &tlasInfo.tlas
     };
+
+    std::vector<VkDescriptorImageInfo> blasTexturesDescriptorImageInfos{};
+    for (uint32_t i = 0U; i < blasInfos.size(); i++) {
+        blasTexturesDescriptorImageInfos.push_back(VkDescriptorImageInfo{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = blasInfos[i].pTexture->imageView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        });
+    }
 #endif // BLACK_HOLE_RAY_QUERY
 
     VkWriteDescriptorSet writeDescriptors[] = {
@@ -345,6 +405,19 @@ void BlackHolePass::InitDescriptorSet(VkDevice device) {
             .pImageInfo = nullptr,
             .pBufferInfo = nullptr,
             .pTexelBufferView = nullptr
+        },
+        // Bottom Level Acceleration Structure Texture
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = &tlasWriteDescriptor,
+            .dstSet = descriptorSet,
+            .dstBinding = BINDING_RAY_QUERY_TEXTURES,
+            .dstArrayElement = 0U,
+            .descriptorCount = static_cast<uint32_t>(blasTexturesDescriptorImageInfos.size()),
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = blasTexturesDescriptorImageInfos.data(),
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
         }
 #endif // BLACK_HOLE_RAY_QUERY
     };
@@ -356,8 +429,12 @@ void BlackHolePass::InitPipeline(VkDevice device) {
     VkPushConstantRange pushConstantRanges[] = {
         {
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-            .offset = PUSH_CONSTANT_CAMERA_POSITION_OFFSET,
-            .size = PUSH_CONSTANT_CAMERA_DIRECTION_OFFSET + 3U*sizeof(float)
+            .offset = 0U,
+#ifdef BLACK_HOLE_RAY_QUERY
+            .size = 128U
+#else
+            .size = 28U
+#endif // BLACK_HOLE_RAY_QUERY
         }
     };
 
@@ -531,13 +608,13 @@ void BlackHolePass::AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &
         .pNext = nullptr,
         .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
         .vertexData = {
-            .deviceAddress = 0ULL
+            .deviceAddress = 0ULL // Will set later
         },
         .vertexStride = 3U*sizeof(float),
         .maxVertex = static_cast<uint32_t>(objData.GetVertices().size()) - 1U,
         .indexType = VK_INDEX_TYPE_UINT32,
         .indexData = {
-            .deviceAddress = 0ULL
+            .deviceAddress = 0ULL // Will set later
         },
         .transformData = {
             .deviceAddress = 0ULL
@@ -576,7 +653,7 @@ void BlackHolePass::AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &
         .pGeometries = &geometry,
         .ppGeometries = nullptr,
         .scratchData = {
-            .deviceAddress = 0ULL
+            .deviceAddress = 0ULL // Will set later
         }
     };
 
@@ -599,7 +676,7 @@ void BlackHolePass::AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &
     pUnderlyingBuffer = &gpuAllocator.AddBuffer(device, bottomLevelASBufferCI);
 
     Utils::CreateBufferInfo vertexBufferCI {
-        .size = static_cast<uint32_t>(objData.GetVertices().size()*sizeof(float)),
+        .size = static_cast<VkDeviceSize>(objData.GetVertices().size()*sizeof(float)),
         .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
         .useDeviceAddressableMemory = true,
@@ -608,7 +685,7 @@ void BlackHolePass::AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &
     blasInfo.pVertexBuffer = &gpuAllocator.AddBuffer(device, vertexBufferCI);
 
     Utils::CreateBufferInfo indexBufferCI {
-        .size = static_cast<uint32_t>(objData.GetVertexIndices().size()*sizeof(uint32_t)),
+        .size = static_cast<VkDeviceSize>(objData.GetVertexIndices().size()*sizeof(uint32_t)),
         .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
         .useDeviceAddressableMemory = true,
@@ -635,6 +712,47 @@ void BlackHolePass::AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &
     scratchBufferSize = std::max(scratchBufferSize, sizeInfo.buildScratchSize);
 
     buildGeometryInfo.dstAccelerationStructure = blas;
+
+    // Texture Coordinates Zone
+    Utils::CreateBufferInfo texCoordsBufferCI {
+        .size = static_cast<VkDeviceSize>(objData.GetTexCoords().size()*sizeof(float)),
+        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+        .useDeviceAddressableMemory = true,
+        .name = std::format("BlackHolePass::Bottom Level AS Texture Coordinates Buffer [{}]", idx)
+    };
+    blasInfo.pTexCoordsBuffer = &gpuAllocator.AddBuffer(device, texCoordsBufferCI);
+
+    Utils::CreateBufferInfo texCoordIndicesBufferCI {
+        .size = static_cast<VkDeviceSize>(objData.GetTexCoordIndices().size()*sizeof(uint32_t)),
+        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+        .useDeviceAddressableMemory = true,
+        .name = std::format("BlackHolePass::Bottom Level AS Texture Coordinate Index Buffer [{}]", idx)
+    };
+    blasInfo.pTexCoordIndicesBuffer = &gpuAllocator.AddBuffer(device, texCoordIndicesBufferCI);
+
+    // Texture Zone
+    blasInfo.textureFileName = std::format("textures/obj{}.png", idx);
+    int isize_x, isize_y;
+    stbi_info(blasInfo.textureFileName.c_str(), &isize_x, &isize_y, nullptr);
+    uint32_t size_x = isize_x, size_y = isize_y;
+
+    Utils::CreateBufferInfo stagingBufferCI {
+        .size = size_x*size_y*4U*sizeof(uint8_t),
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .name = std::format("BlackHolePass::Bottom Level AS Texture Staging Buffer [{}]", idx)
+    };
+    blasInfo.pStagingBuffer = &gpuAllocator.AddBuffer(device, stagingBufferCI, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 0U);
+
+    Utils::CreateImageInfo textureCI {
+        .extent = {
+            .width = size_x,
+            .height = size_y,
+            .depth = 1U
+        },
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .name = std::format("BlackHolePass::Bottom Level AS Texture [{}]", idx)
+    };
+    blasInfo.pTexture = &gpuAllocator.AddImage(device, textureCI);
 }
 
 void BlackHolePass::BuildBottomLevelASes(VkDevice device, VkCommandBuffer commandBuffer) {
@@ -657,10 +775,25 @@ void BlackHolePass::BuildBottomLevelASes(VkDevice device, VkCommandBuffer comman
         vkCmdUpdateBuffer(commandBuffer, indexBuffer, 0ULL, indexData.size()*sizeof(uint32_t), indexData.data());
 
         Utils::MemoryPipelineBarrier(commandBuffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_ACCESS_TRANSFER_WRITE_BIT,
-            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-            VK_ACCESS_SHADER_READ_BIT);
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_SHADER_READ_BIT);
+
+        VkBuffer texCoordsBuffer = blasInfo.pTexCoordsBuffer->buffer;
+        auto const &texCoordsData = blasInfo.objData.GetTexCoords();
+        vkCmdUpdateBuffer(commandBuffer, texCoordsBuffer, 0ULL, texCoordsData.size()*sizeof(float), texCoordsData.data());
+
+        VkBuffer texCoordIndicesBuffer = blasInfo.pTexCoordIndicesBuffer->buffer;
+        auto const &texCoordIndicesData = blasInfo.objData.GetTexCoordIndices();
+        vkCmdUpdateBuffer(commandBuffer, texCoordIndicesBuffer, 0ULL, texCoordIndicesData.size()*sizeof(uint32_t), texCoordIndicesData.data());
+
+        Utils::MemoryPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+        bufferDeviceAddressInfo.buffer = texCoordsBuffer;
+        texCoordsDeviceAddress.push_back(vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo));
+        bufferDeviceAddressInfo.buffer = texCoordIndicesBuffer;
+        texCoordIndicesDeviceAddress.push_back(vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo));
 
         VkAccelerationStructureGeometryTrianglesDataKHR &geometryTrianglesData = blasInfo.geometry.geometry.triangles;
         bufferDeviceAddressInfo.buffer = vertexBuffer;
@@ -677,10 +810,58 @@ void BlackHolePass::BuildBottomLevelASes(VkDevice device, VkCommandBuffer comman
             VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
             VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
             VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
+
+        // Texture Zone
+        Image* &pTexture = blasInfo.pTexture;
+        Buffer* &pStagingBuffer = blasInfo.pStagingBuffer;
+        const uint32_t size_x = pTexture->size.width, size_y = pTexture->size.height;
+        int x = size_x, y = size_y, channels = 4U;
+        uint8_t *copyData = stbi_load(blasInfo.textureFileName.c_str(), &x, &y, &channels, 0U);
+        VkDeviceSize copyDataSize = size_x*size_y*4U*sizeof(uint8_t);
+
+        Utils::CopyMemoryIntoStagingBuffer(device, *pStagingBuffer, copyData, copyDataSize);
+
+        Utils::ImagePipelineBarrier(commandBuffer, *pTexture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+
+        stbi_image_free(copyData);
+
+        // Copy buffer data to image data
+        VkBufferImageCopy bufferImageCopy {
+            .bufferOffset = 0U,
+            .bufferRowLength = 0U,
+            .bufferImageHeight = 0U,
+            .imageSubresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0U,
+                .baseArrayLayer = 0U,
+                .layerCount = 1U
+            },
+            .imageOffset = {
+                .x = 0,
+                .y = 0,
+                .z = 0
+            },
+            .imageExtent = {
+                .width = size_x,
+                .height = size_y,
+                .depth = 1U
+            }
+        };
+
+        vkCmdCopyBufferToImage(commandBuffer, pStagingBuffer->buffer, pTexture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1U, &bufferImageCopy);
+
+        Utils::ImagePipelineBarrier(commandBuffer, *pTexture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
     }
 }
 
 void BlackHolePass::AllocateTopLevelAS(VkDevice device, Utils::GPUAllocator &gpuAllocator) {
+    if (blasInfos.size() > NUM_OF_BLAS_TEXTURES) {
+        // TODO: Fix this
+        throw std::runtime_error("BlackHolePass::AllocateTopLevelAS: Cannot use more than 6 BLASes");
+    }
+
     for (uint32_t i = 0U; i < blasInfos.size(); i++) {
         auto &blasInfo = blasInfos[i];
 
@@ -690,7 +871,7 @@ void BlackHolePass::AllocateTopLevelAS(VkDevice device, Utils::GPUAllocator &gpu
             .mask = 0xFFU,
             .instanceShaderBindingTableRecordOffset = 0U,
             .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
-            .accelerationStructureReference = 0ULL
+            .accelerationStructureReference = 0ULL // Will set later
         });
     }
 
@@ -699,7 +880,7 @@ void BlackHolePass::AllocateTopLevelAS(VkDevice device, Utils::GPUAllocator &gpu
         .pNext = nullptr,
         .arrayOfPointers = VK_FALSE,
         .data = {
-            .deviceAddress = 0ULL
+            .deviceAddress = 0ULL // Will set later
         }
     };
 
@@ -735,7 +916,7 @@ void BlackHolePass::AllocateTopLevelAS(VkDevice device, Utils::GPUAllocator &gpu
         .pGeometries = &geometry,
         .ppGeometries = nullptr,
         .scratchData = {
-            .hostAddress = nullptr
+            .deviceAddress = 0ULL // Will set later
         }
     };
 

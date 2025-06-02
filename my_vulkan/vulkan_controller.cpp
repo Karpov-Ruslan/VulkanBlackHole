@@ -222,21 +222,24 @@ void VulkanController::InitDevice() {
 
     ////////////// Physical Device Features Structure //////////////
     VkPhysicalDeviceFeatures physicalDeviceFeatures {
+#ifdef BLACK_HOLE_RAY_QUERY
+        .shaderInt64 = VK_TRUE
+#endif // BLACK_HOLE_RAY_QUERY
     };
     ////////////////////////////////////////////////////////////////
 
     ///////////////// Device Extensions Structures /////////////////
-    VkPhysicalDeviceBufferDeviceAddressFeatures deviceAddressFeatures {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+    VkPhysicalDeviceVulkan12Features vulkan12Features {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .pNext = nullptr,
-        .bufferDeviceAddress = VK_TRUE,
-        .bufferDeviceAddressCaptureReplay = VK_FALSE,
-        .bufferDeviceAddressMultiDevice = VK_FALSE
+        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingPartiallyBound = VK_TRUE,
+        .bufferDeviceAddress = VK_TRUE
     };
 
     VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
-        .pNext = &deviceAddressFeatures,
+        .pNext = &vulkan12Features,
         .rayQuery = VK_TRUE
     };
 
