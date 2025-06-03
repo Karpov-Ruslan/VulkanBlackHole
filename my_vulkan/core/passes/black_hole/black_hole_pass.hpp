@@ -32,7 +32,7 @@ private:
     void LoadCubeMap(VkDevice device, VkCommandBuffer commandBuffer);
 
 #ifdef BLACK_HOLE_RAY_QUERY
-    void AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &gpuAllocator);
+    void AllocateBottomLevelASes(VkDevice device, Utils::GPUAllocator &gpuAllocator, uint32_t num);
     void BuildBottomLevelASes(VkDevice device, VkCommandBuffer commandBuffer);
 
     void AllocateTopLevelAS(VkDevice device, Utils::GPUAllocator &gpuAllocator);

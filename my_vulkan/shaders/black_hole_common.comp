@@ -30,7 +30,7 @@ const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK
 // Ray Marching params
 const uint MAX_STEPS = 10000U;
 const float TAN_STOP_ITER = 100.0F;
-const float h = 0.003F;
+const float h = 0.01F;
 
 #endif // RAY_MARCHING
 
@@ -164,6 +164,43 @@ vec3 SampleAccrDisk(vec2 uInfo, float phi) {
 
 #endif // PRECOMPUTED
 
+#ifdef RAY_QUERY
+
+// Return value is true if ray hit happens.
+bool rayTraversal(vec3 origin, vec3 direction, inout vec3 outputColor) {
+    rayQueryEXT rayQuery;
+    rayQueryInitializeEXT(rayQuery, topLevelAS, (gl_RayFlagsCullNoOpaqueEXT | gl_RayFlagsSkipAABBEXT),
+        0xFF, origin, 0.0F, direction, 1.0F);
+
+    while(rayQueryProceedEXT(rayQuery)) {
+        // Only triangulated opaque objects are traversed.
+        // So no need to commit intersections.
+    }
+
+    if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
+        uint instanceCustomID = uint(rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, true));
+        uint primitiveID = uint(rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true));
+
+        TexCoordIndex texCoordIndexBase = TexCoordIndex(texCoordIndicesBufferAddress[instanceCustomID]);
+        uvec3 indices = uvec3((texCoordIndexBase + primitiveID*3U).data,
+            (texCoordIndexBase + primitiveID*3U + 1U).data, (texCoordIndexBase + primitiveID*3U + 2U).data);
+
+        vec2 texCoord0 = (TexCoord(texCoordsBufferAddress[instanceCustomID]) + indices[0]).data;
+        vec2 texCoord1 = (TexCoord(texCoordsBufferAddress[instanceCustomID]) + indices[1]).data;
+        vec2 texCoord2 = (TexCoord(texCoordsBufferAddress[instanceCustomID]) + indices[2]).data;
+
+        vec2 barycentricCoords = rayQueryGetIntersectionBarycentricsEXT(rayQuery, true);
+        vec2 texCoord = ((1.0F - barycentricCoords.x - barycentricCoords.y)*texCoord0 +
+            barycentricCoords.x*texCoord1 + barycentricCoords.y*texCoord2);
+        outputColor += texture(blasTextures[nonuniformEXT(instanceCustomID)], texCoord).rgb;
+        return true;
+    }
+
+    return false;
+}
+
+#endif // RAY_QUERY
+
 vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     // u = 1/r; r - radius
     // uInfo = vec2(u, d(u)/d(phi));
@@ -193,47 +230,26 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
         uInfo = rk(uInfo, h);
         phi += h;
 
-#if defined(RAY_QUERY)
+#ifdef RAY_QUERY
         vec3 oldPosition = position;
         vec3 oldDirection = direction;
+#endif // RAY_QUERY
         transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
-
-        rayQueryEXT rayQuery;
-        rayQueryInitializeEXT(rayQuery, topLevelAS, (gl_RayFlagsCullNoOpaqueEXT | gl_RayFlagsSkipAABBEXT),
-            0xFF, oldPosition, 0.0F, position - oldPosition, 1.0F);
-        while(rayQueryProceedEXT(rayQuery)) {
-            // Only triangulated opaque objects are traversed.
-            // So no need to commit intersections.
-        }
-
-        if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
-            uint instanceCustomID = uint(rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, true));
-            uint primitiveID = uint(rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true));
-
-            TexCoordIndex texCoordIndexBase = TexCoordIndex(texCoordIndicesBufferAddress[instanceCustomID]);
-            uvec3 indices = uvec3((texCoordIndexBase + primitiveID*3U).data,
-                (texCoordIndexBase + primitiveID*3U + 1U).data, (texCoordIndexBase + primitiveID*3U + 2U).data);
-
-            vec2 texCoord0 = (TexCoord(texCoordsBufferAddress[instanceCustomID]) + indices[0]).data;
-            vec2 texCoord1 = (TexCoord(texCoordsBufferAddress[instanceCustomID]) + indices[1]).data;
-            vec2 texCoord2 = (TexCoord(texCoordsBufferAddress[instanceCustomID]) + indices[2]).data;
-
-            vec2 barycentricCoords = rayQueryGetIntersectionBarycentricsEXT(rayQuery, true);
-            vec2 texCoord = ((1.0F - barycentricCoords.x - barycentricCoords.y)*texCoord0 +
-                barycentricCoords.x*texCoord1 + barycentricCoords.y*texCoord2);
-            outputColor += texture(blasTextures[nonuniformEXT(instanceCustomID)], texCoord).rgb;
+#ifdef RAY_QUERY
+        if (rayTraversal(oldPosition, position - oldPosition, outputColor)) {
             return outputColor;
         }
-
-        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
-#else // Simple ray marching
-        transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
-        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
 #endif // RAY_QUERY
+        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
     }
 
     // Case: Go into infinity
     transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
+#if defined(RAY_QUERY)
+    if (rayTraversal(position, BLACK_HOLE_RADIUS*10000.0F*direction, outputColor)) {
+        return outputColor;
+    }
+#endif // RAY_QUERY
     outputColor += texture(spaceCubeMap, direction).rgb;
     return outputColor;
 

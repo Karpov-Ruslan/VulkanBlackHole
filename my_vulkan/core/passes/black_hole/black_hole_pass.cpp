@@ -2,6 +2,7 @@
 
 #include "my_vulkan/shaders/shaders_list.hpp"
 #include "my_vulkan/shaders/black_hole.in"
+#include "obj_transformation_matrices.hpp"
 
 #include "my_vulkan/vulkan_functions.hpp"
 
@@ -49,7 +50,7 @@ void BlackHolePass::AllocateResources(VkDevice device, Utils::GPUAllocator& gpuA
 #endif // BLACK_HOLE_PRECOMPUTED
 
 #ifdef BLACK_HOLE_RAY_QUERY
-    AllocateBottomLevelAS(device, gpuAllocator);
+    AllocateBottomLevelASes(device, gpuAllocator, std::size(blasTransformMatrices));
     AllocateTopLevelAS(device, gpuAllocator);
 #endif // BLACK_HOLE_RAY_QUERY
 }
@@ -595,164 +596,166 @@ void BlackHolePass::LoadCubeMap(VkDevice device, VkCommandBuffer commandBuffer) 
 
 #ifdef BLACK_HOLE_RAY_QUERY
 
-void BlackHolePass::AllocateBottomLevelAS(VkDevice device, Utils::GPUAllocator &gpuAllocator) {
-    blasInfos.push_back({});
-    auto &blasInfo = blasInfos.back();
-    auto &objData = blasInfo.objData;
-    uint32_t idx = blasInfos.size() - 1U;
-    objData.Init(std::format("objects/obj{}.obj", idx));
-    blasInfo.transformMatrix = blasTransformMatrices[idx];
+void BlackHolePass::AllocateBottomLevelASes(VkDevice device, Utils::GPUAllocator &gpuAllocator, uint32_t num) {
+    blasInfos.resize(num);
 
-    VkAccelerationStructureGeometryTrianglesDataKHR const geometryTrianglesData {
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
-        .pNext = nullptr,
-        .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
-        .vertexData = {
-            .deviceAddress = 0ULL // Will set later
-        },
-        .vertexStride = 3U*sizeof(float),
-        .maxVertex = static_cast<uint32_t>(objData.GetVertices().size()) - 1U,
-        .indexType = VK_INDEX_TYPE_UINT32,
-        .indexData = {
-            .deviceAddress = 0ULL // Will set later
-        },
-        .transformData = {
+    for (uint32_t idx = 0U; idx < num; idx++) {
+        auto &blasInfo = blasInfos[idx];
+        auto &objData = blasInfo.objData;
+        objData.Init(std::format("objects/obj{}.obj", idx));
+        blasInfo.transformMatrix = blasTransformMatrices[idx];
+
+        VkAccelerationStructureGeometryTrianglesDataKHR const geometryTrianglesData {
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+            .pNext = nullptr,
+            .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
+            .vertexData = {
+                .deviceAddress = 0ULL // Will set later
+            },
+            .vertexStride = 3U*sizeof(float),
+            .maxVertex = static_cast<uint32_t>(objData.GetVertices().size()) - 1U,
+            .indexType = VK_INDEX_TYPE_UINT32,
+            .indexData = {
+                .deviceAddress = 0ULL // Will set later
+            },
+            .transformData = {
+                .deviceAddress = 0ULL
+            }
+        };
+
+        VkAccelerationStructureGeometryKHR &geometry = blasInfo.geometry;
+        geometry = {
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+            .pNext = nullptr,
+            .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
+            .geometry = {
+                .triangles = geometryTrianglesData
+            },
+            .flags = VK_GEOMETRY_OPAQUE_BIT_KHR
+        };
+
+        VkAccelerationStructureBuildRangeInfoKHR &buildRangeInfo = blasInfo.buildRangeInfo;
+        buildRangeInfo = {
+            .primitiveCount = objData.GetNumOfTriangles(),
+            .primitiveOffset = 0U,
+            .firstVertex = 0U,
+            .transformOffset = 0U
+        };
+
+        VkAccelerationStructureBuildGeometryInfoKHR &buildGeometryInfo = blasInfo.buildGeometryInfo;
+        buildGeometryInfo = {
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+            .pNext = nullptr,
+            .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+            .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+            .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+            .srcAccelerationStructure = VK_NULL_HANDLE,
+            .dstAccelerationStructure = VK_NULL_HANDLE,
+            .geometryCount = 1U,
+            .pGeometries = &geometry,
+            .ppGeometries = nullptr,
+            .scratchData = {
+                .deviceAddress = 0ULL // Will set later
+            }
+        };
+
+        VkAccelerationStructureBuildSizesInfoKHR sizeInfo{
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
+            .pNext = nullptr
+        };
+
+        vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+            &buildGeometryInfo, &buildRangeInfo.primitiveCount, &sizeInfo);
+
+        Utils::CreateBufferInfo bottomLevelASBufferCI {
+            .size = sizeInfo.accelerationStructureSize,
+            .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            .useDeviceAddressableMemory = true,
+            .name = std::format("BlackHolePass::Bottom Level AS Buffer [{}]", idx)
+        };
+
+        Buffer* &pUnderlyingBuffer = blasInfo.pUnderlyingBLASBuffer;
+        pUnderlyingBuffer = &gpuAllocator.AddBuffer(device, bottomLevelASBufferCI);
+
+        Utils::CreateBufferInfo vertexBufferCI {
+            .size = static_cast<VkDeviceSize>(objData.GetVertices().size()*sizeof(float)),
+            .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
+            .useDeviceAddressableMemory = true,
+            .name = std::format("BlackHolePass::Bottom Level AS Vertex Buffer [{}]", idx)
+        };
+        blasInfo.pVertexBuffer = &gpuAllocator.AddBuffer(device, vertexBufferCI);
+
+        Utils::CreateBufferInfo indexBufferCI {
+            .size = static_cast<VkDeviceSize>(objData.GetVertexIndices().size()*sizeof(uint32_t)),
+            .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
+            .useDeviceAddressableMemory = true,
+            .name = std::format("BlackHolePass::Bottom Level AS Index Buffer [{}]", idx)
+        };
+        blasInfo.pIndexBuffer = &gpuAllocator.AddBuffer(device, indexBufferCI);
+
+        VkAccelerationStructureCreateInfoKHR const accelerationStructureCI {
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+            .pNext = nullptr,
+            .createFlags = 0U,
+            .buffer = pUnderlyingBuffer->buffer,
+            .offset = 0U,
+            .size = sizeInfo.accelerationStructureSize,
+            .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
             .deviceAddress = 0ULL
-        }
-    };
+        };
 
-    VkAccelerationStructureGeometryKHR &geometry = blasInfo.geometry;
-    geometry = {
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-        .pNext = nullptr,
-        .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
-        .geometry = {
-            .triangles = geometryTrianglesData
-        },
-        .flags = VK_GEOMETRY_OPAQUE_BIT_KHR
-    };
+        VkAccelerationStructureKHR &blas = blasInfo.blas;
+        VK_CALL(vkCreateAccelerationStructureKHR(device, &accelerationStructureCI, nullptr, &blas));
+        Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, blas,
+            std::format("BlackHolePass::Bottom Level AS [{}]", idx).c_str());
 
-    VkAccelerationStructureBuildRangeInfoKHR &buildRangeInfo = blasInfo.buildRangeInfo;
-    buildRangeInfo = {
-        .primitiveCount = objData.GetNumOfTriangles(),
-        .primitiveOffset = 0U,
-        .firstVertex = 0U,
-        .transformOffset = 0U
-    };
+        scratchBufferSize = std::max(scratchBufferSize, sizeInfo.buildScratchSize);
 
-    VkAccelerationStructureBuildGeometryInfoKHR &buildGeometryInfo = blasInfo.buildGeometryInfo;
-    buildGeometryInfo = {
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
-        .pNext = nullptr,
-        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
-        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
-        .srcAccelerationStructure = VK_NULL_HANDLE,
-        .dstAccelerationStructure = VK_NULL_HANDLE,
-        .geometryCount = 1U,
-        .pGeometries = &geometry,
-        .ppGeometries = nullptr,
-        .scratchData = {
-            .deviceAddress = 0ULL // Will set later
-        }
-    };
+        buildGeometryInfo.dstAccelerationStructure = blas;
 
-    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
-        .pNext = nullptr
-    };
+        // Texture Coordinates Zone
+        Utils::CreateBufferInfo texCoordsBufferCI {
+            .size = static_cast<VkDeviceSize>(objData.GetTexCoords().size()*sizeof(float)),
+            .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+            .useDeviceAddressableMemory = true,
+            .name = std::format("BlackHolePass::Bottom Level AS Texture Coordinates Buffer [{}]", idx)
+        };
+        blasInfo.pTexCoordsBuffer = &gpuAllocator.AddBuffer(device, texCoordsBufferCI);
 
-    vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-        &buildGeometryInfo, &buildRangeInfo.primitiveCount, &sizeInfo);
+        Utils::CreateBufferInfo texCoordIndicesBufferCI {
+            .size = static_cast<VkDeviceSize>(objData.GetTexCoordIndices().size()*sizeof(uint32_t)),
+            .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+            .useDeviceAddressableMemory = true,
+            .name = std::format("BlackHolePass::Bottom Level AS Texture Coordinate Index Buffer [{}]", idx)
+        };
+        blasInfo.pTexCoordIndicesBuffer = &gpuAllocator.AddBuffer(device, texCoordIndicesBufferCI);
 
-    Utils::CreateBufferInfo bottomLevelASBufferCI {
-        .size = sizeInfo.accelerationStructureSize,
-        .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        .useDeviceAddressableMemory = true,
-        .name = std::format("BlackHolePass::Bottom Level AS Buffer [{}]", idx)
-    };
+        // Texture Zone
+        blasInfo.textureFileName = std::format("textures/obj{}.png", idx);
+        int isize_x, isize_y;
+        stbi_info(blasInfo.textureFileName.c_str(), &isize_x, &isize_y, nullptr);
+        uint32_t size_x = isize_x, size_y = isize_y;
 
-    Buffer* &pUnderlyingBuffer = blasInfo.pUnderlyingBLASBuffer;
-    pUnderlyingBuffer = &gpuAllocator.AddBuffer(device, bottomLevelASBufferCI);
+        Utils::CreateBufferInfo stagingBufferCI {
+            .size = size_x*size_y*4U*sizeof(uint8_t),
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .name = std::format("BlackHolePass::Bottom Level AS Texture Staging Buffer [{}]", idx)
+        };
+        blasInfo.pStagingBuffer = &gpuAllocator.AddBuffer(device, stagingBufferCI, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 0U);
 
-    Utils::CreateBufferInfo vertexBufferCI {
-        .size = static_cast<VkDeviceSize>(objData.GetVertices().size()*sizeof(float)),
-        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
-        .useDeviceAddressableMemory = true,
-        .name = std::format("BlackHolePass::Bottom Level AS Vertex Buffer [{}]", idx)
-    };
-    blasInfo.pVertexBuffer = &gpuAllocator.AddBuffer(device, vertexBufferCI);
-
-    Utils::CreateBufferInfo indexBufferCI {
-        .size = static_cast<VkDeviceSize>(objData.GetVertexIndices().size()*sizeof(uint32_t)),
-        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR),
-        .useDeviceAddressableMemory = true,
-        .name = std::format("BlackHolePass::Bottom Level AS Index Buffer [{}]", idx)
-    };
-    blasInfo.pIndexBuffer = &gpuAllocator.AddBuffer(device, indexBufferCI);
-
-    VkAccelerationStructureCreateInfoKHR const accelerationStructureCI {
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-        .pNext = nullptr,
-        .createFlags = 0U,
-        .buffer = pUnderlyingBuffer->buffer,
-        .offset = 0U,
-        .size = sizeInfo.accelerationStructureSize,
-        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-        .deviceAddress = 0ULL
-    };
-
-    VkAccelerationStructureKHR &blas = blasInfo.blas;
-    VK_CALL(vkCreateAccelerationStructureKHR(device, &accelerationStructureCI, nullptr, &blas));
-    Utils::DebugUtils::Name(device, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, blas,
-        std::format("BlackHolePass::Bottom Level AS [{}]", idx).c_str());
-
-    scratchBufferSize = std::max(scratchBufferSize, sizeInfo.buildScratchSize);
-
-    buildGeometryInfo.dstAccelerationStructure = blas;
-
-    // Texture Coordinates Zone
-    Utils::CreateBufferInfo texCoordsBufferCI {
-        .size = static_cast<VkDeviceSize>(objData.GetTexCoords().size()*sizeof(float)),
-        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-        .useDeviceAddressableMemory = true,
-        .name = std::format("BlackHolePass::Bottom Level AS Texture Coordinates Buffer [{}]", idx)
-    };
-    blasInfo.pTexCoordsBuffer = &gpuAllocator.AddBuffer(device, texCoordsBufferCI);
-
-    Utils::CreateBufferInfo texCoordIndicesBufferCI {
-        .size = static_cast<VkDeviceSize>(objData.GetTexCoordIndices().size()*sizeof(uint32_t)),
-        .usage = (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-        .useDeviceAddressableMemory = true,
-        .name = std::format("BlackHolePass::Bottom Level AS Texture Coordinate Index Buffer [{}]", idx)
-    };
-    blasInfo.pTexCoordIndicesBuffer = &gpuAllocator.AddBuffer(device, texCoordIndicesBufferCI);
-
-    // Texture Zone
-    blasInfo.textureFileName = std::format("textures/obj{}.png", idx);
-    int isize_x, isize_y;
-    stbi_info(blasInfo.textureFileName.c_str(), &isize_x, &isize_y, nullptr);
-    uint32_t size_x = isize_x, size_y = isize_y;
-
-    Utils::CreateBufferInfo stagingBufferCI {
-        .size = size_x*size_y*4U*sizeof(uint8_t),
-        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        .name = std::format("BlackHolePass::Bottom Level AS Texture Staging Buffer [{}]", idx)
-    };
-    blasInfo.pStagingBuffer = &gpuAllocator.AddBuffer(device, stagingBufferCI, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 0U);
-
-    Utils::CreateImageInfo textureCI {
-        .extent = {
-            .width = size_x,
-            .height = size_y,
-            .depth = 1U
-        },
-        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .name = std::format("BlackHolePass::Bottom Level AS Texture [{}]", idx)
-    };
-    blasInfo.pTexture = &gpuAllocator.AddImage(device, textureCI);
+        Utils::CreateImageInfo textureCI {
+            .extent = {
+                .width = size_x,
+                .height = size_y,
+                .depth = 1U
+            },
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            .name = std::format("BlackHolePass::Bottom Level AS Texture [{}]", idx)
+        };
+        blasInfo.pTexture = &gpuAllocator.AddImage(device, textureCI);
+    }
 }
 
 void BlackHolePass::BuildBottomLevelASes(VkDevice device, VkCommandBuffer commandBuffer) {

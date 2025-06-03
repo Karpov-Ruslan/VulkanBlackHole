@@ -46,7 +46,7 @@ public:
     };
 
     static void Name(VkDevice device, VkObjectType objectType, auto object, const char* name) {
-#ifdef VULKAN_DEBUG_NAMES
+#if defined(VULKAN_DEBUG_NAMES) || defined (VULKAN_DEBUG_VALIDATION_LAYERS)
         VkDebugUtilsObjectNameInfoEXT objectNameInfo {
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .pNext = nullptr,
@@ -56,7 +56,7 @@ public:
         };
 
         NameImpl(device, objectNameInfo);
-#endif // VULKAN_DEBUG_NAMES
+#endif // VULKAN_DEBUG_NAMES, VULKAN_DEBUG_VALIDATION_LAYERS
     }
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
