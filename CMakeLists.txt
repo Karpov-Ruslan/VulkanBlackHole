@@ -43,6 +43,7 @@ add_executable(${PROJECT_NAME}
     utils/window.cpp
     utils/camera.cpp
     utils/obj_data.cpp
+    utils/fps_counter.cpp
     my_vulkan/utils.cpp
     my_vulkan/gpu_allocator.cpp
     my_vulkan/vulkan_controller.cpp

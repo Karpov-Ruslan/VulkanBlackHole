@@ -82,7 +82,7 @@ vec3 initializeStartGrid() {
     float verticalScale = (resolution.y/resolution.x)*HALF_FOV_HORIZONTAL_TAN;
 
     vec3 horizontalCameraVec = horizontalScale*normalize(vec3(cameraDir.y, -cameraDir.x, 0.0));
-    vec3 verticalCameraVec = verticalScale*normalize(cross(horizontalCameraVec, cameraDir));
+    vec3 verticalCameraVec = verticalScale*normalize(cross(cameraDir, horizontalCameraVec));
 
     return cameraDir + horizontalCameraVec*xy.x + verticalCameraVec*xy.y;
 }

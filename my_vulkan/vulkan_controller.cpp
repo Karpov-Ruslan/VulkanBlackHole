@@ -228,7 +228,10 @@ void VulkanController::InitDevice() {
     };
     ////////////////////////////////////////////////////////////////
 
+    void *deviceCIpNext = nullptr;
+
     ///////////////// Device Extensions Structures /////////////////
+#ifdef BLACK_HOLE_RAY_QUERY
     VkPhysicalDeviceVulkan12Features vulkan12Features {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .pNext = nullptr,
@@ -252,11 +255,14 @@ void VulkanController::InitDevice() {
         .accelerationStructureHostCommands = VK_FALSE,
         .descriptorBindingAccelerationStructureUpdateAfterBind = VK_FALSE
     };
+
+    deviceCIpNext = &asFeatures;
+#endif // BLACK_HOLE_RAY_QUERY
     ////////////////////////////////////////////////////////////////
 
     VkDeviceCreateInfo deviceCI {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = &asFeatures,
+        .pNext = deviceCIpNext,
         .flags = 0U,
         .queueCreateInfoCount = 1U,
         .pQueueCreateInfos = &deviceQueueCI,

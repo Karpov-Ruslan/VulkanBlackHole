@@ -7,7 +7,7 @@
 
 namespace KRV {
 
-class VulkanController {
+class VulkanController final {
 public:
     VulkanController();
 
@@ -17,6 +17,8 @@ public:
     VulkanController& operator=(VulkanController &&) = delete;
 
     ~VulkanController();
+
+    void DrawFrame();
 
 protected:
     static constexpr uint32_t FRAMES_IN_FLIGHT = 2U;
@@ -50,7 +52,6 @@ protected:
     void InitCommandBuffers();
 
     void RecordCommandBuffer(VkImage swapchainImage, uint32_t fif);
-    void DrawFrame();
 
     VkInstance instance = VK_NULL_HANDLE;
 #ifdef VULKAN_DEBUG_VALIDATION_LAYERS

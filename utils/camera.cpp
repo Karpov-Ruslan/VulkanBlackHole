@@ -18,11 +18,11 @@ void Camera::Update() {
     float time = clock.Reset();
 
     constexpr static float PI_2 = std::numbers::pi/2.0F - 0.05F;
-    if (events.keyboard.ARROW_UP) {polarAngle = std::clamp(polarAngle - rotation_speed*time, -PI_2, PI_2);}
-    if (events.keyboard.ARROW_DOWN) {polarAngle = std::clamp(polarAngle + rotation_speed*time, -PI_2, PI_2);}
+    if (events.keyboard.ARROW_UP) {polarAngle = std::clamp(polarAngle + rotation_speed*time, -PI_2, PI_2);}
+    if (events.keyboard.ARROW_DOWN) {polarAngle = std::clamp(polarAngle - rotation_speed*time, -PI_2, PI_2);}
     if (events.keyboard.ARROW_LEFT) {azimutalAngle += rotation_speed*time;}
     if (events.keyboard.ARROW_RIGHT) {azimutalAngle -= rotation_speed*time;}
-    polarAngle = std::clamp(polarAngle + rotation_speed*events.mouse.DELTA_POS_Y, -PI_2, PI_2);
+    polarAngle = std::clamp(polarAngle - rotation_speed*events.mouse.DELTA_POS_Y, -PI_2, PI_2);
     azimutalAngle -= rotation_speed*events.mouse.DELTA_POS_X;
     direction = glm::vec3(std::cos(polarAngle)*std::cos(azimutalAngle),
         std::cos(polarAngle)*std::sin(azimutalAngle), std::sin(polarAngle));
@@ -33,8 +33,8 @@ void Camera::Update() {
     if (events.keyboard.S) {position -= direction*speed*time*multiplier;}
     if (events.keyboard.A) {position -= glm::normalize(glm::vec3(direction.y, -direction.x, 0.0F))*speed*time*multiplier;}
     if (events.keyboard.D) {position += glm::normalize(glm::vec3(direction.y, -direction.x, 0.0F))*speed*time*multiplier;}
-    if (events.keyboard.E) {position -= glm::vec3(0.0F, 0.0F, 1.0F)*speed*time*multiplier;}
-    if (events.keyboard.Q) {position += glm::vec3(0.0F, 0.0F, 1.0F)*speed*time*multiplier;}
+    if (events.keyboard.E) {position += glm::vec3(0.0F, 0.0F, 1.0F)*speed*time*multiplier;}
+    if (events.keyboard.Q) {position -= glm::vec3(0.0F, 0.0F, 1.0F)*speed*time*multiplier;}
 }
 
 glm::vec3 const & Camera::GetPosition() const {

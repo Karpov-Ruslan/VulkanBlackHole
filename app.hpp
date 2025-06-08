@@ -4,7 +4,7 @@
 
 namespace KRV {
 
-class App final : public VulkanController {
+class App final {
 public:
     App();
 
@@ -16,6 +16,9 @@ public:
     ~App() = default;
 
     void RenderLoop();
+
+private:
+    VulkanController vulkanController{};
 };
 
 }

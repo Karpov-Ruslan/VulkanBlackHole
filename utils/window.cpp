@@ -98,10 +98,19 @@ void Window::ProcessEvents() {
     curPos_x /= WINDOW_SIZE_WIDTH_F;
     curPos_y /= WINDOW_SIZE_HEIGHT_F;
 
-    events.mouse.DELTA_POS_X = curPos_x - events.mouse.POS_X;
-    events.mouse.DELTA_POS_Y = curPos_y - events.mouse.POS_Y;
-    events.mouse.POS_X = static_cast<float>(curPos_x);
-    events.mouse.POS_Y = static_cast<float>(curPos_y);
+    if (!isInited) {
+        events.mouse.DELTA_POS_X = 0.0F;
+        events.mouse.DELTA_POS_Y = 0.0F;
+        events.mouse.POS_X = static_cast<float>(curPos_x);
+        events.mouse.POS_Y = static_cast<float>(curPos_y);
+        
+        isInited = true;
+    } else {
+        events.mouse.DELTA_POS_X = curPos_x - events.mouse.POS_X;
+        events.mouse.DELTA_POS_Y = curPos_y - events.mouse.POS_Y;
+        events.mouse.POS_X = static_cast<float>(curPos_x);
+        events.mouse.POS_Y = static_cast<float>(curPos_y);
+    }
 }
 
 }

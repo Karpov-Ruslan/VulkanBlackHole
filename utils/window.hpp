@@ -64,6 +64,7 @@ private:
 
     Events events;
     GLFWwindow *window = nullptr;
+    bool isInited = false;
 };
 
 }
