@@ -3,7 +3,7 @@ import os
 import sys
 
 shaders_input_dir = os.path.normpath(os.path.dirname(os.path.abspath(sys.argv[0])))
-shaders_output_dir = shaders_input_dir + r"\spv"
+shaders_output_dir = shaders_input_dir + r"//spv"
 
 shaders_list = (
     ("black_hole_ray_marching_rk4.comp", "vulkan1.0"),
@@ -17,6 +17,6 @@ shaders_list = (
 
 for shader_name, vulkan_env in shaders_list:
     try:
-        subprocess.run(rf'glslc -O --target-env={vulkan_env} -mfmt=c "{shaders_input_dir}\{shader_name}" -o "{shaders_output_dir}\{shader_name}.spv"', check=True)
+        subprocess.run(rf'glslc -O --target-env={vulkan_env} -mfmt=c "{shaders_input_dir}//{shader_name}" -o "{shaders_output_dir}//{shader_name}.spv"', check=True)
     except:
         exit(1)
