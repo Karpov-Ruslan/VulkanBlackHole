@@ -1,5 +1,8 @@
 #include "black_hole.in"
 
+#ifndef BLACK_HOLE_RUNGE_KUTTE_GLSL
+#define BLACK_HOLE_RUNGE_KUTTE_GLSL
+
 ///////////////////////////////// Geodesic Data Section /////////////////////////////////
 
 struct GeodesicData {
@@ -149,16 +152,26 @@ vec4 christoffelSymbol33(GeodesicData geodesicData) {
 /////////////////////////////////////////////////////////////////////////////////////////
 
 // Assume theta is pi/2 and it is constant.
-GeodesicData initGeodesicData(vec3 position, vec3 direction) {
-    GeodesicData geodesicData;
-
+void transformPositionAndDirectionToGeodesic(vec3 position, vec3 direction, out GeodesicData geodesicData, out vec3 rotationAxis) {
     vec3 n_position = normalize(position);
     vec3 n_direction = normalize(direction);
 
-    geodesicData.coord = vec4(length(position), pi/2.0F, 0.0F, 0.0F);
-    geodesicData.derivative = vec4(dot(n_position, n_direction), 0.0F, length(cross(n_position, n_direction))/length(position), inversesqrt(1.0F - (BLACK_HOLE_RADIUS/geodesicData.coord[0])));
+    rotationAxis = cross(n_position, n_direction);
 
-    return geodesicData;
+    geodesicData.coord = vec4(length(position), pi/2.0F, 0.0F, 0.0F);
+    geodesicData.derivative = vec4(dot(n_position, n_direction), 0.0F, length(rotationAxis)/length(position), inversesqrt(1.0F - (BLACK_HOLE_RADIUS/geodesicData.coord[0])));
+}
+
+void transformGeodesicToPositionAndDirection(GeodesicData geodesicData, vec3 rotationAxis, out vec3 position, out vec3 direction) {
+    float radius = geodesicData.coord[0];
+    float phi = geodesicData.coord[2];
+
+    vec3 normCameraPos = normalize(cameraPos);
+    vec3 normRotationAxis = normalize(rotationAxis);
+    vec3 normPerpendicular = cross(normRotationAxis, normCameraPos); // Normalized Perpendicular
+    vec3 normPosition = normCameraPos * cos(phi) + normPerpendicular * sin(phi);
+    position = normPosition*radius;
+    direction = normalize(cross(normRotationAxis, normPosition) + normPosition*(geodesicData.derivative[0]/geodesicData.derivative[2])/radius);
 }
 
 // Actually, return value is derivative of `GeodesicData`, but semantically it is the same thing.
@@ -216,3 +229,5 @@ GeodesicData rk(GeodesicData geodesicData, float h) {
 #endif // RUNGE_KUTTE_1
 
 }
+
+#endif // BLACK_HOLE_RUNGE_KUTTE_GLSL

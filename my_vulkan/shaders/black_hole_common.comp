@@ -140,26 +140,14 @@ bool rayTraversal(vec3 origin, vec3 direction, inout vec3 outputColor) {
 
 #endif // RAY_QUERY
 
-void transformGeodesicCoordToPosition(GeodesicData geodesicData, vec3 rotationAxis, out vec3 position, out vec3 direction) {
-    float radius = geodesicData.coord[0];
-    float phi = geodesicData.coord[2];
-
-    vec3 normCameraPos = normalize(cameraPos);
-    vec3 normRotationAxis = normalize(rotationAxis);
-    vec3 normPerpendicular = cross(normRotationAxis, normCameraPos); // Normalized Perpendicular
-    vec3 normPosition = normCameraPos * cos(phi) + normPerpendicular * sin(phi);
-    position = normPosition*radius;
-    direction = normalize(cross(normRotationAxis, normPosition) + normPosition*(geodesicData.derivative[0]/geodesicData.derivative[2])/radius);
-}
-
 vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     vec3 position = cameraPos;
     vec3 direction = normalize(pixelCameraDir);
     vec3 outputColor = vec3(0.0F);
-    vec3 rotationAxis = cross(cameraPos, direction);
 
-    // Remember, theta is constant pi/2.
-    GeodesicData geodesicData = initGeodesicData(position, direction);
+    GeodesicData geodesicData;
+    vec3 rotationAxis;
+    transformPositionAndDirectionToGeodesic(position, direction, geodesicData, rotationAxis);
 
     for (uint i = 0U; i < MAX_STEPS; ++i) {
         // Case: Fall into black hole
@@ -179,7 +167,7 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
 #ifdef RAY_QUERY
         vec3 oldPosition = position;
 #endif // RAY_QUERY
-        transformGeodesicCoordToPosition(geodesicData, rotationAxis, position, direction);
+        transformGeodesicToPositionAndDirection(geodesicData, rotationAxis, position, direction);
 #ifdef RAY_QUERY
         if (rayTraversal(oldPosition, position - oldPosition, outputColor)) {
             return outputColor;
