@@ -1,0 +1,276 @@
+\section{Алгоритм рендеринга черной дыры}
+\label{sec:Chapter1} \index{Chapter1}
+
+Рендеринг реалистичного изображения в компьютерной графике можно сравнивать с фотосъемкой. И там, и там конечным результатом является изображение, которое получается на основании свойств света, попавшего в камеру. Пользуясь этим, можно упростить законы выбранного неевклидова пространства, используя их только для света (фотонов).
+
+\subsection{Метрика Шварцшильда}
+
+В науке наиболее популярным методом описания пространства является метрика - симметричное тензорное поле ранга (0,2) на гладком многообразии, посредством которого задаётся скалярное произведение векторов в касательном пространстве. Иначе говоря, благодаря метрике можно понять как при малых изменениях локальных (т.е. применимых только в локальной области) координат $(dx, dy, ...)$ изменяется расстояние $ds$ между точками в пространстве. Примеры метрик:
+\begin{itemize}
+  \item Евклидова: $ds^2=dx^2+dy^2+dz^2$.
+  \item Сферическая (двумерная): $ds^2=dx^2+cos^2(\frac{y}{R})dy^2$.
+  \item Минковского: $ds^2=c^2dt^2-dx^2-dy^2-dz^2$.
+\end{itemize}
+
+Для описания выбранной рабочей сцены, т.е. для черной дыры (предполагая, что она не заряжена и не вращается), существует метрика Шварцшильда в сферических координатах $(t, r, \theta, \phi)$:
+\begin{equation}
+\label{eq:schwarzschild_metric}
+    ds^2 = c^2d\tau^2 = (1-\frac{r_s}{r})c^{2}dt^{2} - (1-\frac{r_s}{r})^{-1}dr^2 - r^2(d\theta^2+sin^2(\theta)d\phi^2)
+\end{equation}
+, где $\tau$ - собственное время и $r_s = \frac{2GM}{c^2}$ - \textit{радиус Шварцшильда}, который определяет область вокруг ЧД массой $M$, которую луч света покинуть не сможет. Считаем, что центр черной дыры расположен в начале координат.
+
+Для частиц в течение движения сохраняются энергия и угловой момент (константы движения):
+\begin{equation}
+\label{eq:motion_constant_E}
+    E = (1-\frac{r_s}{r})\frac{dt}{d\tau}.
+\end{equation}
+
+\begin{equation}
+\label{eq:motion_constant_L}
+    L = r^2\frac{d\phi}{d\tau}.
+\end{equation}
+
+Метрику можно преобразовать из \eqref{eq:schwarzschild_metric}, считая $c = 1$ и $\theta=\frac{\pi}{2}$, поскольку метрика Шварцшильда симметрична, а значит траектория луча всегда будет лежать в плоскости:
+\begin{equation}
+\label{eq:schwarzschild_metric1}
+    c^2 = (1-\frac{r_s}{r})c^2(\frac{dt}{d\tau})^2 - (1-\frac{r_s}{r})^{-1}(\frac{dr}{d\tau})^2 - r^2(\frac{d\phi}{d\tau})^2.
+\end{equation}
+
+Из \eqref{eq:motion_constant_E}, \eqref{eq:motion_constant_L} и \eqref{eq:schwarzschild_metric1} можно получить следующее выражение:
+\begin{equation}
+\label{eq:schwarzschild_metric2}
+    (\frac{dr}{d\tau})^2 = \frac{E^2}{m^2c^2} - (1-\frac{r_s}{r})(c^2+\frac{L^2}{r^2}).
+\end{equation}
+
+Поскольку справедливо следующее равенство:
+\begin{equation}
+\label{eq:equation_of_diff}
+    (\frac{dr}{d\phi})^2 = (\frac{dr}{d\tau})^2(\frac{d\tau}{d\phi})^2 = (\frac{dr}{d\tau})^2(\frac{r^2}{L})^2.
+\end{equation}
+
+То используя \eqref{eq:schwarzschild_metric2} и \eqref{eq:equation_of_diff} можно получить уравнение:
+\begin{equation}
+\label{eq:schwarzschild_metric3}
+    (\frac{dr}{d\phi})^2 = \frac{r^4}{b^2} - (1-\frac{r_s}{r})(\frac{r^4}{a^2} + r^2).
+\end{equation}
+, где $a = \frac{L}{c}$ и $b = \frac{mcL}{E}$ - константы.
+
+Применяя замену переменной $u = \frac{1}{r}$, а также учитывая, что при стремлении массы частицы $m$ к нулю, $m \longrightarrow 0$, константа движения $a$ стремиться к бесконечности, $a \longrightarrow \infty$, упрощаем \eqref{eq:schwarzschild_metric3}:
+\begin{equation}
+\label{eq:schwarzschild_metric4}
+    (\frac{du}{d\phi})^2 = r_su^3 - u^2 + \frac{1}{b^2}.
+\end{equation}
+
+Дифференцируя \eqref{eq:schwarzschild_metric4}:
+\begin{equation}
+\label{eq:schwarzschild_metric5}
+    2\frac{du}{d\phi}\frac{d^2u}{d\phi^2} = 3r_su^2\frac{du}{d\phi} - 2u\frac{du}{d\phi}.
+\end{equation}
+
+Итоговый результат из \eqref{eq:schwarzschild_metric5} выглядит следующим образом:
+\begin{equation}
+\label{eq:diffur}
+    \frac{d^2u}{d\phi^2} = \frac{3}{2}r_su^2 - u.
+\end{equation}
+
+\subsection{Методы Рунге-Кутты}
+\label{subsec:runge-kutte}
+
+Дифференциальное уравнение \eqref{eq:diffur} не имеет явного решения, поэтому разумно использовать для его решения итеративный подход. Одними из таких подходов являются методы Рунге-Кутты.
+
+Методы Рунге-Кутты позволяют итеративно находить решение дифференциальных уравнений с заданными условиями на сетке $\phi$ значений, обычно с постоянным шагом $\Delta \phi$:
+
+\begin{equation}
+\label{eq:runge-kutte}
+    \frac{\mathbf{dy}}{d\phi} = \mathbf{f}(\phi, \mathbf{y}),
+    \quad
+    \left.\mathbf{y}\right|_{\phi=\phi_0}=\mathbf{y_0}.
+\end{equation}
+
+В случае уравнения \eqref{eq:diffur}:
+
+\begin{equation*}
+\label{eq:runge-kutte_y}
+    \mathbf{y} =
+    \begin{cases}
+        u
+        \\
+        \frac{du}{d\phi}
+    \end{cases}
+\end{equation*}
+
+\begin{equation*}
+\label{eq:runge-kutte_f}
+    \mathbf{f}(\phi, \mathbf{y}), =
+    \begin{cases}
+        \frac{du}{d\phi}
+        \\
+        \frac{3}{2}r_su^2 - u
+    \end{cases}
+\end{equation*}
+
+Для данной работы были выбраны явные методы Рунге-Кутты порядков 1, 2 и 4. Разные порядки имеют разную точность, сведения представлены в таблице \ref{tab:runge-kutte}:
+
+\begin{center}
+    \begin{table}[h!]
+        \centering
+        \begin{tabular}{|c|c|}
+            \hline
+            Порядок метода Рунге-Кутты & Погрешность шага $\Delta h$ \\
+            \hline
+            Рунге-Кутты 1-го порядка (RK1) & $O(h^2)$ \\
+            \hline
+            Рунге-Кутты 2-го порядка (RK2) & $O(h^3)$ \\
+            \hline
+            Рунге-Кутты 4-го порядка (RK4) & $O(h^5)$ \\
+            \hline
+        \end{tabular}
+        \caption{Сравнение погрешностей методов Рунге-Кутты.}
+        \label{tab:runge-kutte}
+    \end{table}
+\end{center}
+
+
+\subsection{Инициализация лучей света}
+\label{subsec:ray_init}
+
+Осталось только определить $y_0$ и $\phi_0$ из \eqref{eq:runge-kutte}. Начальные условия $y_0$ будут определяться на основе позиции и направления камеры (т.е. наблюдателя), а также угла обзора (field of view).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\linewidth]{CameraRaysProblem}
+    \caption{Малая часть испущенного света попадает в камеру.}
+    \label{fig:camera_rays_problem}
+\end{figure}
+
+Стоит отметить, что, как было сказано выше, рендеринг - это свет попавший в камеру. Но испускать свет в сцене от всех источников освещения, а затем учитывать только тот свет, что попал в камеру - невыгодно, поскольку лишь малая часть действительно попадет в камеру (см. рис. \ref{fig:camera_rays_problem}). Поэтому в компьютерной графике давно используют закон обратимости света: гораздо выгоднее выпускать лучи из каждого пикселя камеры и затем просчитывать какой цвет они приобретут в ходе движения по сцене.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\linewidth]{PinholeCameraModel}
+    \caption{Модель камеры-обскуры (pinhole camera model).}
+    \label{fig:pinhole_camera}
+\end{figure}
+
+В качестве модели камеры выбрана модель камеры-обскуры \\(pinhole camera model) \cite[стр.~47]{marrs2021ray}, поскольку это одна из стандартных моделей камеры. Для ее настройки необходимо знать параметры камеры и угол обзора (поле зрения). Главным следствием использования этой модели является эквидистантность точек пересечения лучей с плоскостью изображения, лежащих на одной линии (см. рис. \ref{fig:pinhole_camera}).
+
+Пусть изображение представляет из себя тензор второго ранга размером $(N, M)$. Индекс пикселя это упорядоченный набор двух неотрицательных чисел $(n, m)$, начиная с $0$ по каждому пикселю. Направление и позиция в декартовых координатах, а также угол обзора камеры обозначаются $\mathbf{a_c}$, $\mathbf{d_c}$ и $fov$ соответственно. В терминологии данной работы углом обзора будет называться угол между крайними лучами на одной горизонтальной прямой. Зная все это можно получить направления лучей каждого пикселя в декартовых координатах $\mathbf{d_0}$:
+
+\begin{align*}
+    x &= (n + 0.5)/N, \\
+    y &= (m + 0.5)/M, \\
+    scale_{horizontal} = scale_h &= \tan{\left(\frac{fov}{2}\right)}, \\
+    scale_{vertical} = scale_v &= \left(\frac{N}{M}\right) \cdot scale_h, \\
+    \mathbf{offset}_{horizontal} = \mathbf{offset}_h &= scale_h \cdot normalize(\mathbf{d_c} \times \mathbf{e_z}), \\
+    \mathbf{offset}_{vertical} = \mathbf{offset}_v &= scale_v \cdot normalize(\mathbf{d_c} \times \mathbf{offset}_h).
+\end{align*}
+
+Таким образом, направление луча пикселя в декартовых кооринатах $\mathbf{d_0}$ можно вычислить следующим образом:
+
+\begin{equation}
+\label{eq:init_rays}
+    \mathbf{d_{nm}} = \mathbf{d_c} + \mathbf{offset}_{h} \cdot x + \mathbf{offset}_{v} \cdot y.
+\end{equation}
+
+\subsection{Переход из декартовых в полярные координаты плоскости вращения}
+
+Полученные начальные условия $\mathbf{d_0}$ из \eqref{eq:init_rays} получены в декартовых координатах, а метод Рунге-Кутты, изложенный в разделе \ref{subsec:runge-kutte}, описан в полярных координатах. Поэтому перед итеративным решением необходимо определить $y_0$ и $\phi_0$ из \eqref{eq:runge-kutte} на основании данных раздела \ref{subsec:ray_init}.
+
+\newpage
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\linewidth]{rotation_plane}
+    \caption{Разные плоскости вращения с точки зрения камеры.}
+    \label{fig:rotation_plane}
+\end{figure}
+
+Для простоты примем $\phi_0 = 0$. Начальный радиус $r_0 = |\mathbf{a_c}|$, т.е. начальный обратный радиус $u_0 = \frac{1}{r_0} = \frac{1}{|\mathbf{a_c}|}$. Таким образом первая компонента $\mathbf{y_0}$ определена.
+
+Для нахождения второй компоненты сперва нужно определить вектор вращения луча $\mathbf{w_{nm}}$ т.е. вектор, задающий плоскость вращения. В общем случае для каждого пикселя плоскость вращения будет отличаться (см. рис. \ref{fig:rotation_plane}).
+
+\begin{equation}
+\label{eq:w_ray}
+    \mathbf{w_{nm}} = \mathbf{a_c} \times \mathbf{d_{nm}}.
+\end{equation}
+
+\newpage
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{BlackHole-RayAngle}
+    \caption{Начальные условия (зеленым изображена траектория света, черным пунктиром - окружность, центр которой совпадает с центром черной дыры).}
+    \label{fig:blackhole_rayAngle}
+\end{figure}
+
+Поскольку вторая компонента $\mathbf{y_0}$ это $\frac{du}{d\phi}$, то необходимо вычислить начальное значение этой производной (см. рис. \ref{fig:blackhole_rayAngle}), пользуясь методом малых перемещений:
+
+\begin{equation}
+\label{eq:dudr_init}
+    \left.\frac{du}{d\phi}\right|_{\phi=\phi_0=0} = \frac{d\left(\frac{1}{r}\right)}{d\phi} = -\frac{1}{r^2}\left(\frac{dr}{d\phi}\right) = -\frac{\tan{\alpha}}{r} = -\frac{1}{r}\left(\frac{\mathbf{a_c} \cdot \mathbf{d_{nm}}}{\left|\mathbf{w_{nm}}\right|}\right).
+\end{equation}
+
+Подытоживая, начальное условие $\mathbf{y_0}$ будет равно:
+
+\begin{equation}
+\label{eq:runge-kutte_y0}
+    \mathbf{y_0} =
+    \begin{cases}
+        \frac{1}{\left|\mathbf{a_c}\right|}
+        \\
+        -\frac{1}{r}\left(\frac{\mathbf{a_c} \cdot \mathbf{d_{nm}}}{\left|\mathbf{w_{nm}}\right|}\right)
+    \end{cases}
+\end{equation}
+
+\newpage
+
+\subsection{Краевые случаи}
+\label{subsec:corner_cases}
+Для черной дыры выделяются два краевых случая:
+
+\begin{enumerate}
+    \item Попадание луча в горизонт событий.
+    \item Уход луча на бесконечность.
+\end{enumerate}
+
+Рассмотрим каждые из них отдельно.
+
+\subsubsection{Попадание луча в горизонт событий}
+\label{subsubsec:events_horizon}
+
+Луч, попавший в горизонт событий, уже никогда не выйдет из него, поэтому можно сказать, пользуясь законом обратимости света, что такие лучи приобретают черный цвет (если по пути до этого не пересеклись с другим объектом, разумеется).
+
+Поскольку \textit{радиус Шварцшильда} $r_s$ является радиусом горизонта событий, то на каждой итерации решения уравнения \eqref{eq:diffur} методом Рунге-Кутты необходимо проводить проверку на нахождение внутри шара горизонта событий. То есть если на $i$-ой итерации, $r_i = \frac{1}{u_i} < r_s$, то нужно остановить итерирование и обрабатывать полученный результаты.
+
+\subsubsection{Уход луча на бесконечность}
+\label{subsubsec:goes_to_infinity}
+
+Луч, находящийся далеко от черной дыры, движется по почти прямой траектории. В таком случае можно считать, что направление луча не измениться, а значит можно сразу окрасить луч света в какой-то цвет на основании \textit{дальнего} окружения черной дыры.
+
+\newpage
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.0\linewidth]{cubemap}
+    \caption{Кубическая текстура звездного неба.}
+    \label{fig:cubemap}
+\end{figure}
+
+Черные дыры - это массивные объекты, находящиеся в космосе. Поэтому в качестве окружения разумно выбрать звездное небо (см. рис. \ref{fig:cubemap}) и в случае ухода луча на бесконечность брать значения из этого звездного неба.
+
+Осталось определить условие ухода луча на бесконечность. В общем случае на каждой $i$-ой итерации стоило бы проверять, как далеко свет ушел, но для черной дыры можно сделать упрощение, которое несет в себе еще и решение различных визуальных проблем: когда луч уходит все дальше и дальше от черной дыры, то $\phi$ из \eqref{eq:diffur} почти перестает меняться, что может вызывать проблемы с постоянным шагом $\Delta\phi$ в методе Рунге-Кутты. Упрощенное условие ухода на бесконечность выглядит следующим образом (см. рис. \ref{fig:blackhole_rayAngle}):
+
+\begin{equation}
+\label{eq:goes_to_infinity}
+    \tan{\alpha} > tan_{crit} \quad \textit{или} \quad \left(\frac{du}{d\phi}\right)_i < -tan_{crit} \cdot u.
+\end{equation}
+, где $tan_{crit}$ - критическое значение тангенса угла $\alpha$ к окружности с центром, совпадающим с центром черной дыры.
+
+\subsection{Аккреционный диск}
+\label{subsec:accr_disk}
+
+Все прошлые разделы описывали реализацию \textit{гравитационного линзирования}. Однако стоит отметить, что по соседству с черной дырой часто оказывается вращающийся горячий газовый диск, именуемый \textit{аккреционным диском}. Аккреционный диск по своим размерам сопоставим с радиусом Шварцшильда во всех направлениях (в том числе и в толщине) и поскольку это горячий газ, то его можно воспринимать как полупрозрачный объект.
+
+Сложность визуализации аккреционного диска зависит от желаемого уровня реалистичности. Для данной работы я ограничился следующими параметрами аккреционного диска: ось вращения диска, внутренний и внешний радиусы, а также сделал цвет диска зависящим только от радиуса и расстояния от плоскости, задаваемой осью вращения диска.
+
+\newpage
