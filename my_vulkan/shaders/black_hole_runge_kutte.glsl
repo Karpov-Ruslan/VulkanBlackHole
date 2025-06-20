@@ -31,71 +31,119 @@ GeodesicData operatorMultiply(GeodesicData geodesicData, float multiplier) {
 ////////////////////////////////// Christoffel Section //////////////////////////////////
 
 // Christoffel Symbol is G_{ij}^{k}.
-// Return value is tensor \frac{d^2 x^k}{d\lambda^2}.
-vec4 christoffelSymbol(uint i, uint j, GeodesicData geodesicData) {
+// Return value of function christoffelSymbol_i_j is christoffel symbol tensor G_{ij}^{k},
+// where `i` and `j` is two last symbols in the function name.
+vec4 christoffelSymbol00(GeodesicData geodesicData) {
     // Additional variables
     float r = geodesicData.coord[0];
     float theta = geodesicData.coord[1];
+    return vec4(-(0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r))), 0.0F, 0.0F, 0.0F);
+}
 
-    if (i == 0U) {
-        if (j == 0U) {
-            return vec4(-(0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r))), 0.0F, 0.0F, 0.0F);
-        }
-        if (j == 1U) {
-            return vec4(0.0F, 1.0F/r, 0.0F, 0.0F);
-        }
-        if (j == 2U) {
-            return vec4(0.0F, 0.0F, 1.0F/r, 0.0F);
-        }
-        if (j == 3U) {
-            return vec4(0.0F, 0.0F, 0.0F, 0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));
-        }
-    }
-    if (i == 1U) {
-        if (j == 0U) {
-            return vec4(0.0F, 1.0F/r, 0.0F, 0.0F);
-        }
-        if (j == 1U) {
-            return vec4(-r*(1.0F - BLACK_HOLE_RADIUS/r), 0.0F, 0.0F, 0.0F);
-        }
-        if (j == 2U) {
-            return vec4(0.0F, 0.0F, 1.0F/tan(theta), 0.0F);
-        }
-        if (j == 3U) {
-            return vec4(0.0F);
-        }
-    }
-    if (i == 2U) {
-        if (j == 0U) {
-            return vec4(0.0F, 0.0F, 1.0F/r, 0.0F);
-        }
-        if (j == 1U) {
-            return vec4(0.0F, 0.0F, 1.0F/tan(theta), 0.0F);
-        }
-        if (j == 2U) {
-            float valOfSin = sin(theta);
-            return vec4(-r*(1.0F - BLACK_HOLE_RADIUS/r)*valOfSin*valOfSin, -valOfSin*cos(theta), 0.0F, 0.0F);
-        }
-        if (j == 3U) {
-            return vec4(0.0F);
-        }
-    }
-    if (i == 3U) {
-        if (j == 0U) {
-            return vec4(0.0F, 0.0F, 0.0F, 0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));
-        }
-        if (j == 1U) {
-            return vec4(0.0F);
-        }
-        if (j == 2U) {
-            return vec4(0.0F);
-        }
-        if (j == 3U) {
-            return vec4(0.5F*BLACK_HOLE_RADIUS*(1.0F - BLACK_HOLE_RADIUS/r)/(r*r), 0.0F, 0.0F, 0.0F);
-        }
-    }
+vec4 christoffelSymbol01(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 1.0F/r, 0.0F, 0.0F);
+}
 
+vec4 christoffelSymbol02(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 0.0F, 1.0F/r, 0.0F);
+}
+
+vec4 christoffelSymbol03(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 0.0F, 0.0F, 0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));
+}
+
+vec4 christoffelSymbol10(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 1.0F/r, 0.0F, 0.0F);
+}
+
+vec4 christoffelSymbol11(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(-r*(1.0F - BLACK_HOLE_RADIUS/r), 0.0F, 0.0F, 0.0F);
+}
+
+vec4 christoffelSymbol12(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 0.0F, 1.0F/tan(theta), 0.0F);
+}
+
+vec4 christoffelSymbol13(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
     return vec4(0.0F);
+}
+
+vec4 christoffelSymbol20(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 0.0F, 1.0F/r, 0.0F);
+}
+
+vec4 christoffelSymbol21(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 0.0F, 1.0F/tan(theta), 0.0F);
+}
+
+vec4 christoffelSymbol22(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    float valOfSin = sin(theta);
+    return vec4(-r*(1.0F - BLACK_HOLE_RADIUS/r)*valOfSin*valOfSin, -valOfSin*cos(theta), 0.0F, 0.0F);
+}
+
+vec4 christoffelSymbol23(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F);
+}
+
+vec4 christoffelSymbol30(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F, 0.0F, 0.0F, 0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));
+}
+
+vec4 christoffelSymbol31(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F);
+}
+
+vec4 christoffelSymbol32(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.0F);
+}
+
+vec4 christoffelSymbol33(GeodesicData geodesicData) {
+    // Additional variables
+    float r = geodesicData.coord[0];
+    float theta = geodesicData.coord[1];
+    return vec4(0.5F*BLACK_HOLE_RADIUS*(1.0F - BLACK_HOLE_RADIUS/r)/(r*r), 0.0F, 0.0F, 0.0F);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -115,16 +163,30 @@ GeodesicData initGeodesicData(vec3 position, vec3 direction) {
 
 // Actually, return value is derivative of `GeodesicData`, but semantically it is the same thing.
 GeodesicData f(GeodesicData geodesicData) {
-    GeodesicData ret;
 
-    ret.coord = geodesicData.derivative;
-    ret.derivative = vec4(0.0F);
+#define X(i, j) -(christoffelSymbol##i##j(geodesicData)*geodesicData.derivative[i]*geodesicData.derivative[j])
 
-    for (uint i = 0U; i < 4U; i++) {
-        for (uint j = 0U; j < 4U; j++) {
-                ret.derivative += -christoffelSymbol(i, j, geodesicData)*geodesicData.derivative[i]*geodesicData.derivative[j];
-        }
-    }
+    GeodesicData ret = {
+        geodesicData.derivative,
+        X(0, 0)
+        X(0, 1)
+        X(0, 2)
+        X(0, 3)
+        X(1, 0)
+        X(1, 1)
+        X(1, 2)
+        X(1, 3)
+        X(2, 0)
+        X(2, 1)
+        X(2, 2)
+        X(2, 3)
+        X(3, 0)
+        X(3, 1)
+        X(3, 2)
+        X(3, 3)
+    };
+
+#undef X
 
     return ret;
 }
