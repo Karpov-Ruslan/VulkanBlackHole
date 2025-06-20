@@ -30,6 +30,7 @@ const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK
 // Ray Marching params
 const uint MAX_STEPS = 10000U;
 const float TAN_STOP_ITER = 100.0F;
+const float COS_STOP_ITER = 0.99995000375F;
 const float h = 0.01F;
 
 #endif // RAY_MARCHING
@@ -42,12 +43,7 @@ layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 
 layout(set = 0, binding = BINDING_FINAL_IMAGE, rgba8) uniform restrict writeonly image2D outImage;
 layout(set = 0, binding = BINDING_CUBE_MAP) uniform samplerCube spaceCubeMap;
 
-#if defined(PRECOMPUTED)
-
-layout(set = 0, binding = BINDING_PRECOMPUTED_PHI_TEXTURE) uniform sampler2D precomputedPhiTexture;
-layout(set = 0, binding = BINDING_PRECOMPUTED_ACCR_DISK_DATA_TEXTURE) uniform sampler3D precomputedAccrDiskDataTexture;
-
-#elif defined(RAY_QUERY)
+#if defined(RAY_QUERY)
 
 layout(set = 0, binding = BINDING_RAY_QUERY_TLAS) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = BINDING_RAY_QUERY_TEXTURES) uniform sampler2D blasTextures[NUM_OF_BLAS_TEXTURES];
@@ -60,7 +56,7 @@ layout(std430, buffer_reference, buffer_reference_align = 4) readonly buffer Tex
     uint data;
 };
 
-#endif // PRECOMPUTED, RAY_QUERY
+#endif // RAY_QUERY
 
 layout(push_constant) uniform PushConst {
     vec3 cameraPos;
@@ -87,18 +83,6 @@ vec3 initializeStartGrid() {
     return cameraDir + horizontalCameraVec*xy.x + verticalCameraVec*xy.y;
 }
 
-// u = 1/r; r - radius
-// uInfo = vec2(u, d(u)/d(phi));
-void transformUInfoIntoDirectionAndPosition(vec2 uInfo, float phi, vec3 rotationAxis, out vec3 position, out vec3 direction) {
-    vec3 normCameraPos = normalize(cameraPos);
-    vec3 normRotationAxis = normalize(rotationAxis);
-    vec3 normPerpendicular = cross(normRotationAxis, normCameraPos); // Normalized Perpendicular
-    vec3 normPosition = normCameraPos * cos(phi) + normPerpendicular * sin(phi);
-    float radius = (1.0F/uInfo.x);
-    position = normPosition*radius;
-    direction = normalize(cross(normRotationAxis, normPosition) - normPosition*uInfo.y*radius);
-}
-
 float rand(float n) {
     return fract(sin(n) * 43758.5453123F);
 }
@@ -109,8 +93,6 @@ float noise(float p) {
 	return mix(rand(fl), rand(fl + 1.0F), fc);
 }
 
-#ifdef RAY_MARCHING
-
 float accretionDiskDensity(vec3 position) {
     float a = -dot(position, ROTATION_AXIS_OF_ACCRETION_DISK);
     if (abs(a) > THICKNESS_OF_ACCRETION_DISK) {return 0.0F;} // Save performance
@@ -120,49 +102,6 @@ float accretionDiskDensity(vec3 position) {
 }
 
 #include "black_hole_runge_kutte.glsl"
-
-#endif // RAY_MARCHING
-
-#ifdef PRECOMPUTED
-
-float accretionDiskDensity(float r) {
-    if (r < INNER_RADIUS_OF_ACCRETION_DISK || r > OUTER_RADIUS_OF_ACCRETION_DISK) {return 0.0F;} // Save performance
-    return noise(r*400.0F);
-}
-
-vec2 SampleAngle(vec2 uInfo) {
-    if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
-        return vec2(0.0F, -1.0F);
-    }
-
-    vec2 rawUV = vec2(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F));
-
-    const vec2 precomputedTextureSize = vec2(PRECOMPUTED_PHI_TEXTURE_WIDTH, PRECOMPUTED_PHI_TEXTURE_HEIGHT);
-    const vec2 multiplier = (precomputedTextureSize - vec2(1.0F))/precomputedTextureSize;
-    const vec2 addition = vec2(0.5F)/precomputedTextureSize;
-
-    return texture(precomputedPhiTexture, fma(rawUV, multiplier, addition)).rg;
-}
-
-vec3 SampleAccrDisk(vec2 uInfo, float phi) {
-    if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
-        return vec3(0.0F);
-    }
-
-    vec3 rawUVW = vec3(uInfo.x*BLACK_HOLE_RADIUS, fma(atan(-uInfo.y*length(cameraPos)), inv_pi, 0.5F), phi/pi);
-
-    const vec3 precomputedTextureSize = vec3(PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_WIDTH,
-        PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_HEIGHT, PRECOMPUTED_ACCR_DISK_DATA_TEXTURE_DEPTH);
-
-    const vec3 multiplier = (precomputedTextureSize - vec3(1.0F))/precomputedTextureSize;
-    const vec3 addition = vec3(0.5F)/precomputedTextureSize;
-
-    vec2 radii = texture(precomputedAccrDiskDataTexture, fma(rawUVW, multiplier, addition)).rg;
-
-    return (accretionDiskDensity(radii[0]) + accretionDiskDensity(radii[1]))*COLOR_OF_ACCRETION_DISK*0.1F;
-}
-
-#endif // PRECOMPUTED
 
 #ifdef RAY_QUERY
 
@@ -201,40 +140,46 @@ bool rayTraversal(vec3 origin, vec3 direction, inout vec3 outputColor) {
 
 #endif // RAY_QUERY
 
+void transformGeodesicCoordToPosition(GeodesicData geodesicData, vec3 rotationAxis, out vec3 position, out vec3 direction) {
+    float radius = geodesicData.coord[0];
+    float phi = geodesicData.coord[2];
+
+    vec3 normCameraPos = normalize(cameraPos);
+    vec3 normRotationAxis = normalize(rotationAxis);
+    vec3 normPerpendicular = cross(normRotationAxis, normCameraPos); // Normalized Perpendicular
+    vec3 normPosition = normCameraPos * cos(phi) + normPerpendicular * sin(phi);
+    position = normPosition*radius;
+    direction = normalize(cross(normRotationAxis, normPosition) + normPosition*(geodesicData.derivative[0]/geodesicData.derivative[2])/radius);
+}
+
 vec3 traceRayBlackHole(vec3 pixelCameraDir) {
-    // u = 1/r; r - radius
-    // uInfo = vec2(u, d(u)/d(phi));
-    float invInitialRadius = 1.0F/length(cameraPos);
-    vec3 rotationAxis = cross(cameraPos, pixelCameraDir);
-    vec2 uInfo = vec2(invInitialRadius, -(dot(cameraPos, pixelCameraDir)/length(rotationAxis))*invInitialRadius);
-    float phi = 0.0F;
-
-    // Forward declaration
-    vec3 direction = pixelCameraDir;
     vec3 position = cameraPos;
+    vec3 direction = normalize(pixelCameraDir);
     vec3 outputColor = vec3(0.0F);
+    vec3 rotationAxis = cross(cameraPos, direction);
 
-#ifdef RAY_MARCHING
+    // Remember, theta is constant pi/2.
+    GeodesicData geodesicData = initGeodesicData(position, direction);
 
     for (uint i = 0U; i < MAX_STEPS; ++i) {
         // Case: Fall into black hole
-        if (uInfo.x > INV_BLACK_HOLE_RADIUS) {
+        if (geodesicData.coord[0] < BLACK_HOLE_RADIUS) {
             return outputColor;
         }
 
         // Case: The ray is already flying in a straight line
-        if (uInfo.y < -TAN_STOP_ITER*uInfo.x) {
+        if (dot(direction, normalize(position)) > COS_STOP_ITER) {
             break;
         }
 
-        uInfo = rk(uInfo, h);
-        phi += h;
+
+        const float lambdaStep = 0.01F;
+        geodesicData = rk(geodesicData, lambdaStep);
 
 #ifdef RAY_QUERY
         vec3 oldPosition = position;
-        vec3 oldDirection = direction;
 #endif // RAY_QUERY
-        transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
+        transformGeodesicCoordToPosition(geodesicData, rotationAxis, position, direction);
 #ifdef RAY_QUERY
         if (rayTraversal(oldPosition, position - oldPosition, outputColor)) {
             return outputColor;
@@ -244,42 +189,13 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     }
 
     // Case: Go into infinity
-    transformUInfoIntoDirectionAndPosition(uInfo, phi, rotationAxis, position, direction);
 #if defined(RAY_QUERY)
-    if (rayTraversal(position, BLACK_HOLE_RADIUS*10000.0F*direction, outputColor)) {
+    if (rayTraversal(position, BLACK_HOLE_RADIUS*100000.0F*direction, outputColor)) {
         return outputColor;
     }
 #endif // RAY_QUERY
     outputColor += texture(spaceCubeMap, direction).rgb;
     return outputColor;
-
-#elif defined(PRECOMPUTED)
-
-    vec3 intersectionVec = cross(rotationAxis, ROTATION_AXIS_OF_ACCRETION_DISK);
-    float dotProd = dot(cameraPos, intersectionVec);
-    if (dotProd < 0.0F) {
-        intersectionVec = -intersectionVec;
-        dotProd = -dotProd;
-    }
-
-    phi = acos(dotProd/(length(cameraPos)*length(intersectionVec)));
-
-    if (dot(cross(rotationAxis, cameraPos), intersectionVec) > 0.0F) {
-        phi = pi - phi;
-    }
-
-    outputColor = SampleAccrDisk(uInfo, phi);
-
-    vec2 phiAndFlags = SampleAngle(uInfo);
-
-    if (phiAndFlags.y < 0.0F) {
-        return outputColor;
-    }
-
-    transformUInfoIntoDirectionAndPosition(uInfo, phiAndFlags.x, rotationAxis, position, direction);
-    return outputColor + texture(spaceCubeMap, position).rgb;
-
-#endif // RAY_MARCHING, PRECOMPUTED
 
 }
 
