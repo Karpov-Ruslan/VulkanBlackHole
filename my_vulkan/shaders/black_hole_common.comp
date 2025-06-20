@@ -173,7 +173,7 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
         }
 
 
-        const float lambdaStep = 0.01F;
+        const float lambdaStep = 0.1F;
         geodesicData = rk(geodesicData, lambdaStep);
 
 #ifdef RAY_QUERY
