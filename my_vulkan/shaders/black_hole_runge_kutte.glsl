@@ -30,120 +30,72 @@ GeodesicData operatorMultiply(GeodesicData geodesicData, float multiplier) {
 
 ////////////////////////////////// Christoffel Section //////////////////////////////////
 
-float christoffelSymbol(uint i, uint j, uint k, GeodesicData geodesicData) {
+// Christoffel Symbol is G_{ij}^{k}.
+// Return value is tensor \frac{d^2 x^k}{d\lambda^2}.
+vec4 christoffelSymbol(uint i, uint j, GeodesicData geodesicData) {
     // Additional variables
     float r = geodesicData.coord[0];
     float theta = geodesicData.coord[1];
 
     if (i == 0U) {
         if (j == 0U) {
-            if (k == 0U) {return -(0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(-(0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r))), 0.0F, 0.0F, 0.0F);
         }
         if (j == 1U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 1.0F/r;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F, 1.0F/r, 0.0F, 0.0F);
         }
         if (j == 2U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 1.0F/r;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F, 0.0F, 1.0F/r, 0.0F);
         }
         if (j == 3U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return (0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));}
+            return vec4(0.0F, 0.0F, 0.0F, 0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));
         }
     }
     if (i == 1U) {
         if (j == 0U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 1.0F/r;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F, 1.0F/r, 0.0F, 0.0F);
         }
         if (j == 1U) {
-            if (k == 0U) {return -r*(1.0F - BLACK_HOLE_RADIUS/r);}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(-r*(1.0F - BLACK_HOLE_RADIUS/r), 0.0F, 0.0F, 0.0F);
         }
         if (j == 2U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 1.0F/tan(theta);}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F, 0.0F, 1.0F/tan(theta), 0.0F);
         }
         if (j == 3U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F);
         }
     }
     if (i == 2U) {
         if (j == 0U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 1.0F/r;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F, 0.0F, 1.0F/r, 0.0F);
         }
         if (j == 1U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 1.0F/tan(theta);}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F, 0.0F, 1.0F/tan(theta), 0.0F);
         }
         if (j == 2U) {
-            if (k == 0U) {
-                float valOfSin = sin(theta);
-                return -r*(1.0F - BLACK_HOLE_RADIUS/r)*valOfSin*valOfSin;
-            }
-            if (k == 1U) {return -sin(theta)*cos(theta);}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            float valOfSin = sin(theta);
+            return vec4(-r*(1.0F - BLACK_HOLE_RADIUS/r)*valOfSin*valOfSin, -valOfSin*cos(theta), 0.0F, 0.0F);
         }
         if (j == 3U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F);
         }
     }
     if (i == 3U) {
         if (j == 0U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return (0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));}
+            return vec4(0.0F, 0.0F, 0.0F, 0.5F*BLACK_HOLE_RADIUS/(r*r*(1.0F - BLACK_HOLE_RADIUS/r)));
         }
         if (j == 1U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F);
         }
         if (j == 2U) {
-            if (k == 0U) {return 0.0F;}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.0F);
         }
         if (j == 3U) {
-            if (k == 0U) {return 0.5F*BLACK_HOLE_RADIUS*(1.0F - BLACK_HOLE_RADIUS/r)/(r*r);}
-            if (k == 1U) {return 0.0F;}
-            if (k == 2U) {return 0.0F;}
-            if (k == 3U) {return 0.0F;}
+            return vec4(0.5F*BLACK_HOLE_RADIUS*(1.0F - BLACK_HOLE_RADIUS/r)/(r*r), 0.0F, 0.0F, 0.0F);
         }
     }
 
-    return 0.0F;
+    return vec4(0.0F);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -170,9 +122,7 @@ GeodesicData f(GeodesicData geodesicData) {
 
     for (uint i = 0U; i < 4U; i++) {
         for (uint j = 0U; j < 4U; j++) {
-            for (uint k = 0U; k < 4U; k++) {
-                ret.derivative[k] += -christoffelSymbol(i, j, k, geodesicData)*geodesicData.derivative[i]*geodesicData.derivative[j];
-            }
+                ret.derivative += -christoffelSymbol(i, j, geodesicData)*geodesicData.derivative[i]*geodesicData.derivative[j];
         }
     }
 
