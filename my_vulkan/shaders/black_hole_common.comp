@@ -167,13 +167,13 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
             return outputColor;
         }
 
-        // Case: The ray is already flying in a straight line
+        // Case: The ray is already flying in a straight line (includes case when ray is far away).
         if (dot(direction, normalize(position)) > COS_STOP_ITER) {
             break;
         }
 
 
-        const float lambdaStep = 0.1F;
+        float lambdaStep = 0.001F*geodesicData.coord[0]/BLACK_HOLE_RADIUS;
         geodesicData = rk(geodesicData, lambdaStep);
 
 #ifdef RAY_QUERY
