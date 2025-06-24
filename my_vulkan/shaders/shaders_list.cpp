@@ -21,6 +21,11 @@ const std::unordered_map<SHADER_LIST_ID, std::vector<uint32_t>> shaderList = {
         SHADER_LIST_ID::BLACK_HOLE_RAY_QUERY_COMP,
         #include <black_hole_ray_query.comp.spv>
     },
+	{
+		SHADER_LIST_ID::BLACK_DIHOLE_COMP,
+		#include <black_dihole.comp.spv>
+	}
+	/*
     {
         SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTED_COMP,
         #include <black_hole_precomputed.comp.spv>
@@ -33,6 +38,7 @@ const std::unordered_map<SHADER_LIST_ID, std::vector<uint32_t>> shaderList = {
         SHADER_LIST_ID::BLACK_HOLE_PRECOMPUTE_ACCR_DISK_DATA_TEXTURE_COMP,
         #include <black_hole_precompute_accr_disk_data_texture.comp.spv>
     }
+    */
 };
 
 ShaderModule::ShaderModule(VkDevice device, SHADER_LIST_ID id) : device(device) {

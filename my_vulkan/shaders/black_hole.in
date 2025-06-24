@@ -22,4 +22,14 @@
 
 #define NUM_OF_BLAS_TEXTURES                        6U
 
+
+// DIHOLE case
+#define H1M	0.1F
+#define H2M 0.1F
+#define H1Z 1.0F
+#define H2Z -1.0F
+
+#define GRAD_H 0.01F
+#define GRAD_STRETCH 0.05F
+
 #endif // BLACK_HOLE_IN

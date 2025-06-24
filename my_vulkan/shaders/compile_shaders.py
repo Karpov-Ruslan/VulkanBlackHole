@@ -9,7 +9,8 @@ shaders_list = (
     ("black_hole_ray_marching_rk4.comp", "vulkan1.0"),
     ("black_hole_ray_marching_rk2.comp", "vulkan1.0"),
     ("black_hole_ray_marching_rk1.comp", "vulkan1.0"),
-    ("black_hole_ray_query.comp", "vulkan1.2")
+    ("black_hole_ray_query.comp", "vulkan1.2"),
+    ("black_dihole.comp", "vulkan1.2")
 )
 
 for shader_name, vulkan_env in shaders_list:

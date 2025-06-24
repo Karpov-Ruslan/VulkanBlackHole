@@ -1,5 +1,11 @@
-#ifndef BLACK_HOLE_COMMON_COMP
-#define BLACK_HOLE_COMMON_COMP
+#version 460
+
+
+#ifndef BLACK_DIHOLE_COMP
+#define BLACK_DIHOLE_COMP
+#define RAY_QUERY
+#define RAY_MARCHING
+#define RUNGE_KUTTE_2
 
 #include "black_hole.in"
 
@@ -30,7 +36,7 @@ const float INV_THICKNESS_OF_ACCRETION_DISK = 1.0F / THICKNESS_OF_ACCRETION_DISK
 // Ray Marching params
 const uint MAX_STEPS = 10000U;
 const float TAN_STOP_ITER = 100.0F;
-const float COS_STOP_ITER = 0.99995000375F;
+const float COS_STOP_ITER = 10.99995000375F;
 const float h = 0.01F;
 
 #endif // RAY_MARCHING
@@ -101,7 +107,7 @@ float accretionDiskDensity(vec3 position) {
     return max(noise(r*400.0F) - abs(a)*INV_THICKNESS_OF_ACCRETION_DISK, 0.0F);
 }
 
-#include "black_hole_runge_kutte.glsl"
+#include "black_dihole_rk.glsl"
 
 #ifdef RAY_QUERY
 
@@ -144,24 +150,30 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
     vec3 position = cameraPos;
     vec3 direction = normalize(pixelCameraDir);
     vec3 outputColor = vec3(0.0F);
-
-    GeodesicData geodesicData;
-    vec3 rotationAxis;
-    transformPositionAndDirectionToGeodesic(position, direction, geodesicData, rotationAxis);
+	vec3 rotationAxis;
+    GeodesicData geodesicData = {vec4(position, 0.0F),
+		vec4(direction, 1.0F)};
 
     for (uint i = 0U; i < MAX_STEPS; ++i) {
-        // Case: Fall into black hole
-        if (geodesicData.coord[0] < BLACK_HOLE_RADIUS) {
-            return outputColor;
+        // Case: Fall into black holes
+		vec4 c = geodesicData.coord;
+        float r1 = r1(c);
+        float r2 = r2(c);
+        if (4*r1 < H1M) {
+            return outputColor + vec3(1.0F, 0, 0);
+        }
+
+		if (4*r2 < H2M) {
+            return outputColor + vec3(0, 0, 1.0F);
         }
 
         // Case: The ray is already flying in a straight line (includes case when ray is far away).
-        if (dot(direction, normalize(position)) > COS_STOP_ITER) {
+        if (dot(direction, position) > COS_STOP_ITER) {
             break;
         }
 
 
-        float lambdaStep = 0.001F*(1.0F + 0.1F*pow(geodesicData.coord[0]/BLACK_HOLE_RADIUS,2.0F)) ;
+        float lambdaStep = 0.001F*(1.0F + 0.1F*pow(min(r1/H1M, r2/H2M),2.0F)) ;
         geodesicData = rk(geodesicData, lambdaStep);
 
 #ifdef RAY_QUERY
@@ -173,7 +185,7 @@ vec3 traceRayBlackHole(vec3 pixelCameraDir) {
             return outputColor;
         }
 #endif // RAY_QUERY
-        outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
+        //outputColor += accretionDiskDensity(position)*COLOR_OF_ACCRETION_DISK*h;
     }
 
     // Case: Go into infinity
@@ -192,4 +204,4 @@ void main() {
     imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(traceRayBlackHole(pixelCameraDir), 1.0F));
 }
 
-#endif // BLACK_HOLE_COMMON_COMP
+#endif // BLACK_DIHOLE_COMP

@@ -8,6 +8,7 @@ set(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Werror -static")
 
 set(VULKAN_IGNORE_DISCRETE_GPU OFF CACHE BOOL "Use integrated GPU for rendering")
 set(VULKAN_DEBUG "DEBUG_DISABLED" CACHE STRING "Use DebugUtils for vulkan debugging and VVL")
+set(BLACK_DIHOLE OFF CACHE BOOL "Render systom of 2 black holes")
 set_property(CACHE VULKAN_DEBUG PROPERTY STRINGS
     "DEBUG_DISABLED"
     "DEBUG_NAMES"
@@ -21,6 +22,12 @@ set_property(CACHE BLACK_HOLE_RENDER_MODE PROPERTY STRINGS
     "RAY_MARCHING_RK1"
     "RAY_QUERY"
 )
+
+if (${BLACK_HOLE_RENDER_MODE} STREQUAL "RAY_QUERY")
+    if (${BLACK_DIHOLE})
+        add_compile_definitions("BLACK_DIHOLE")
+    endif()
+endif()
 
 add_compile_definitions("BLACK_HOLE_${BLACK_HOLE_RENDER_MODE}")
 
