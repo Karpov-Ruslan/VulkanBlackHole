@@ -16,12 +16,12 @@
 
 namespace {
     constexpr char const *cubeMapsFaceNames[6] = {
-        "textures/black_hole/front.png",
-        "textures/black_hole/back.png",
-        "textures/black_hole/top.png",
-        "textures/black_hole/bottom.png",
         "textures/black_hole/left.png",
-        "textures/black_hole/right.png"
+        "textures/black_hole/right.png",
+        "textures/black_hole/bottom.png",
+        "textures/black_hole/top.png",
+        "textures/black_hole/back.png",
+        "textures/black_hole/front.png"
     };
 
     constexpr uint32_t cubeMapFacesNum = std::size(cubeMapsFaceNames);
